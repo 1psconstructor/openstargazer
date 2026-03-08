@@ -26,15 +26,15 @@ classifiers = [
     "Topic :: Games/Entertainment",
 ]
 dependencies = [
-    "pygobject>=3.44",
     "numpy>=1.24",
     "pyusb>=1.2",
     "tomli>=2.0; python_version<'3.11'",
 ]
 
 [project.optional-dependencies]
+gui  = ["pygobject>=3.44"]
 tray = ["pystray>=0.19"]
-dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
+dev  = ["pytest>=7.0", "pytest-asyncio>=0.21"]
 
 [project.urls]
 Homepage = "https://github.com/1psconstructor/openstargazer"

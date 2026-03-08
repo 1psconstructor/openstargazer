@@ -144,7 +144,7 @@ install_python_package() {
     cd "$PROJECT_DIR"
 
     # Try normal user install first
-    if python3 -m pip install --user -e ".[tray]" 2>/dev/null; then
+    if python3 -m pip install --user -e ".[gui,tray]" 2>/dev/null; then
         info "Python package installed ✓"
         return
     fi
@@ -156,7 +156,7 @@ install_python_package() {
 
     local venv_dir="${HOME}/.local/share/openstargazer/venv"
     python3 -m venv --system-site-packages "$venv_dir"
-    "$venv_dir/bin/pip" install --quiet -e ".[tray]"
+    "$venv_dir/bin/pip" install --quiet -e ".[gui,tray]"
 
     # Symlink the entry-point scripts into ~/.local/bin so they are on PATH
     local bin_dir="${HOME}/.local/bin"
