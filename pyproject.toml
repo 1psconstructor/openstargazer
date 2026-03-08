@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openstargazer"
+version = "0.1.0"
+description = "Native Linux driver for Tobii Eye Tracker 5 with OpenTrack & Star Citizen integration"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "1psconstructor"},
+]
+keywords = ["tobii", "eye-tracking", "head-tracking", "star-citizen", "opentrack", "linux"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment",
+]
+dependencies = [
+    "pygobject>=3.44",
+    "numpy>=1.24",
+    "pyusb>=1.2",
+    "tomli>=2.0; python_version<'3.11'",
+]
+
+[project.optional-dependencies]
+tray = ["pystray>=0.19"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
+
+[project.urls]
+Homepage = "https://github.com/1psconstructor/openstargazer"
+Repository = "https://github.com/1psconstructor/openstargazer"
+"Bug Tracker" = "https://github.com/1psconstructor/openstargazer/issues"
+
+[project.scripts]
+osg-daemon = "openstargazer.daemon.main:main"
+osg-config  = "gui.app:main"
+osg-setup   = "openstargazer.setup.wizard:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openstargazer", "gui"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

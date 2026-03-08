@@ -1,0 +1,9 @@
+# openstargazer – Tobii Eye Tracker 5 – all known PIDs
+# Copy to /etc/udev/rules.d/ and run: udevadm control --reload-rules && udevadm trigger
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0127", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0118", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0106", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0128", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="010a", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0313", MODE="0660", GROUP="plugdev", TAG+="uaccess"

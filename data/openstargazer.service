@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenStarGazer – Tobii Eye Tracker 5 Daemon
+Documentation=https://github.com/1psconstructor/openstargazer
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/osg-daemon
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ET5 GUI Preview Gallery</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: #0d0d12;
+  color: #e0e0f0;
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  padding: 40px 32px;
+}
+
+h1 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #555570;
+  margin-bottom: 6px;
+  font-family: 'JetBrains Mono', monospace;
+}
+h2 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #f0eeff;
+  margin-bottom: 36px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.card {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: #13131a;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.card:hover { transform: translateY(-3px); }
+
+/* Preview thumbnails via iframe */
+.thumb {
+  width: 100%;
+  height: 340px;
+  position: relative;
+  overflow: hidden;
+}
+.thumb iframe {
+  width: 200%;
+  height: 200%;
+  transform: scale(0.5);
+  transform-origin: top left;
+  border: none;
+  pointer-events: none;
+}
+.thumb-overlay {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+
+/* Fallback colored previews */
+.preview-v1 { background: linear-gradient(135deg, #08080a 0%, #0f1420 100%); }
+.preview-v2 { background: linear-gradient(135deg, #000510 0%, #001a0a 100%); }
+.preview-v3 { background: linear-gradient(135deg, #eef0fd 0%, #f0f2f8 100%); }
+.preview-v4 { background: linear-gradient(135deg, #06000e 0%, #150028 100%); }
+
+.card-meta {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.card-meta-v3 { border-top-color: rgba(0,0,0,0.08); background: #fafafa; color: #1a1d2e; }
+
+.tag {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.tag-v1 { background: rgba(0,200,255,0.12); color: #00c8ff; }
+.tag-v2 { background: rgba(0,255,159,0.1); color: #00ff9f; }
+.tag-v3 { background: rgba(91,106,240,0.12); color: #5b6af0; }
+.tag-v4 { background: rgba(255,0,110,0.12); color: #ff006e; }
+
+.card-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 3px;
+}
+.card-desc {
+  font-size: 12px;
+  color: #6060a0;
+  line-height: 1.4;
+}
+.card-meta-v3 .card-desc { color: #8890a8; }
+
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #00c8ff;
+  text-decoration: none;
+}
+.card:nth-child(2) .card-link { color: #00ff9f; }
+.card:nth-child(3) .card-link { color: #5b6af0; }
+.card:nth-child(4) .card-link { color: #ff006e; }
+
+/* Mini UI sketches as CSS art */
+.sketch { padding: 20px; height: 300px; position: relative; overflow: hidden; }
+
+/* V1 sketch */
+.sk1-sidebar {
+  position: absolute; left:10px; top:10px; bottom:10px; width:46px;
+  background: #0f0f12; border-right: 1px solid #1e1e24;
+}
+.sk1-dot { width:6px;height:6px;border-radius:50%;background:#00c8ff;margin:12px auto 0; }
+.sk1-nav { margin-top:10px; }
+.sk1-nav-item { height:4px;background:#1e1e24;margin:6px 8px;border-radius:2px; }
+.sk1-nav-item.a { background: rgba(0,200,255,0.3); border-left:2px solid #00c8ff; }
+.sk1-main { position:absolute;left:66px;top:10px;right:10px;bottom:10px; }
+.sk1-card { background:#0f0f12;border:1px solid #1e1e24;border-radius:4px;margin-bottom:6px;padding:6px 8px; }
+.sk1-bar { height:2px;border-radius:1px;margin:4px 0; }
+.sk1-canvas { height:60px;background:#08080a;border-radius:3px;display:flex;align-items:center;justify-content:center;margin-bottom:4px; }
+.sk1-gaze-dot { width:7px;height:7px;border-radius:50%;background:#00c8ff;box-shadow:0 0 8px #00c8ff; }
+
+/* V2 sketch */
+.sk2-bg { position:absolute;inset:0;background:#000510; }
+.sk2-grid {
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(0,255,159,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,159,0.05) 1px,transparent 1px);
+  background-size:20px 20px;
+}
+.sk2-hud { position:absolute;inset:8px;border:1px solid rgba(0,255,159,0.2); }
+.sk2-hud::before,.sk2-hud::after { content:'';position:absolute;width:8px;height:8px;border-color:rgba(0,255,159,0.6);border-style:solid; }
+.sk2-hud::before { top:0;left:0;border-width:2px 0 0 2px; }
+.sk2-hud::after { bottom:0;right:0;border-width:0 2px 2px 0; }
+.sk2-radar { position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
+.sk2-ring { border-radius:50%;border:1px solid rgba(0,255,159,0.15);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%); }
+.sk2-dot { width:6px;height:6px;border-radius:50%;background:#00ff9f;box-shadow:0 0 10px #00ff9f;position:absolute;top:42%;left:55%;transform:translate(-50%,-50%); }
+.sk2-panel { position:absolute;background:rgba(0,255,159,0.03);border:1px solid rgba(0,255,159,0.15);padding:5px; }
+.sk2-row { height:2px;background:rgba(0,255,159,0.15);margin:4px 0;border-radius:1px; }
+
+/* V3 sketch */
+.sk3-bg { position:absolute;inset:0;background:#f0f2f8; }
+.sk3-sidebar { position:absolute;left:0;top:0;bottom:0;width:48px;background:#fff;border-right:1px solid #e4e7f0; }
+.sk3-logo { width:18px;height:18px;background:#5b6af0;border-radius:4px;margin:10px auto 0; }
+.sk3-nav-dot { width:8px;height:8px;border-radius:50%;background:#eceef6;margin:8px auto 0; }
+.sk3-nav-dot.a { background:rgba(91,106,240,0.2); }
+.sk3-main { position:absolute;left:58px;top:0;right:0;bottom:0;padding:8px; }
+.sk3-card { background:#fff;border:1px solid #e4e7f0;border-radius:8px;padding:8px;margin-bottom:6px;box-shadow:0 1px 4px rgba(20,25,60,0.06); }
+.sk3-stripe { height:3px;border-radius:2px 2px 0 0;margin:-8px -8px 6px; }
+.sk3-bar { height:2px;border-radius:1px;background:#e4e7f0;margin:4px 0; }
+.sk3-bar-fill { height:100%;border-radius:1px; }
+.sk3-dot { width:8px;height:8px;border-radius:50%;background:#5b6af0;box-shadow:0 0 6px rgba(91,106,240,0.5);margin:4px auto; }
+
+/* V4 sketch */
+.sk4-bg { position:absolute;inset:0;background:#06000e; }
+.sk4-top { position:absolute;top:0;left:0;right:0;height:22px;background:rgba(11,0,24,0.98);border-bottom:1px solid rgba(139,0,255,0.2); display:flex;align-items:center;padding:0 10px;gap:6px; }
+.sk4-led { width:4px;height:4px;border-radius:50%; }
+.sk4-sidebar { position:absolute;left:0;top:22px;bottom:22px;width:42px;background:rgba(11,0,24,0.98);border-right:1px solid rgba(139,0,255,0.2); }
+.sk4-nav-line { height:2px;margin:8px 6px 0;border-left:2px solid transparent; }
+.sk4-nav-line.a { background:rgba(255,0,110,0.15);border-left-color:#ff006e; }
+.sk4-main { position:absolute;left:52px;top:22px;right:50px;bottom:22px;padding:6px; }
+.sk4-panel { background:rgba(139,0,255,0.04);border:1px solid rgba(139,0,255,0.22);padding:5px;margin-bottom:5px; }
+.sk4-panel::before { content:'';display:block;height:1px;background:linear-gradient(90deg,#ff006e,transparent);margin:-5px -5px 4px;opacity:0.4; }
+.sk4-canvas { height:70px;background:#04000a;display:flex;align-items:center;justify-content:center;position:relative; }
+.sk4-gaze { width:7px;height:7px;background:#ff006e;transform:rotate(45deg);box-shadow:0 0 10px #ff006e; }
+.sk4-right { position:absolute;right:0;top:22px;bottom:22px;width:50px;background:rgba(11,0,24,0.6);border-left:1px solid rgba(139,0,255,0.2); }
+.sk4-row { height:2px;background:rgba(139,0,255,0.15);margin:6px 6px 0;border-radius:1px; }
+.sk4-bottom { position:absolute;bottom:0;left:0;right:0;height:22px;background:rgba(11,0,24,0.98);border-top:1px solid rgba(139,0,255,0.2); }
+</style>
+</head>
+<body>
+
+<div style="max-width:1100px;margin:0 auto 40px;">
+  <h1>ET5 Linux Driver</h1>
+  <h2>GUI Design Preview Gallery</h2>
+</div>
+
+<div class="grid">
+
+  <!-- V1 -->
+  <a class="card" href="v1/index.html" target="_blank">
+    <div class="thumb preview-v1">
+      <div class="sketch">
+        <div class="sk1-sidebar">
+          <div class="sk1-dot"></div>
+          <div class="sk1-nav">
+            <div class="sk1-nav-item a"></div>
+            <div class="sk1-nav-item"></div>
+            <div class="sk1-nav-item"></div>
+            <div class="sk1-nav-item"></div>
+          </div>
+        </div>
+        <div class="sk1-main">
+          <div class="sk1-card" style="height:100px;">
+            <div class="sk1-canvas"><div class="sk1-gaze-dot"></div></div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;">
+              <div style="background:#08080a;border:1px solid #1e1e24;height:18px;border-radius:2px;"></div>
+              <div style="background:#08080a;border:1px solid #1e1e24;height:18px;border-radius:2px;"></div>
+              <div style="background:#08080a;border:1px solid #1e1e24;height:18px;border-radius:2px;"></div>
+              <div style="background:#08080a;border:1px solid #1e1e24;height:18px;border-radius:2px;"></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 80px;gap:6px;">
+            <div class="sk1-card">
+              <div style="height:12px;background:#08080a;border-radius:2px;margin-bottom:5px;"></div>
+              <div class="sk1-bar" style="background:rgba(0,200,255,0.15);"></div>
+              <div class="sk1-bar" style="background:rgba(0,200,255,0.1);"></div>
+              <div class="sk1-bar" style="background:rgba(0,200,255,0.08);"></div>
+            </div>
+            <div class="sk1-card">
+              <div class="sk1-bar" style="background:#1e1e24;"></div>
+              <div class="sk1-bar" style="background:#1e1e24;"></div>
+              <div class="sk1-bar" style="background:#1e1e24;"></div>
+              <div class="sk1-bar" style="background:#1e1e24;"></div>
+            </div>
+          </div>
+          <div style="height:8px;background:#0f0f12;border:1px solid #1e1e24;border-radius:3px;margin-top:5px;display:flex;align-items:center;padding:0 5px;gap:4px;">
+            <div style="width:30px;height:3px;background:#00c8ff;border-radius:2px;"></div>
+            <div style="width:20px;height:3px;background:#1e1e24;border-radius:2px;"></div>
+            <div style="flex:1;"></div>
+            <div style="width:35px;height:3px;background:rgba(239,68,68,0.3);border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="thumb-overlay"></div>
+    </div>
+    <div class="card-meta">
+      <span class="tag tag-v1">v1 · Monolith</span>
+      <div class="card-name">Minimal Dark Professional</div>
+      <div class="card-desc">Clean monochrome design with cyan accent. Left sidebar navigation, gaze canvas preview, statistics strips, and slider controls.</div>
+      <div class="card-link">Open preview →</div>
+    </div>
+  </a>
+
+  <!-- V2 -->
+  <a class="card" href="v2/index.html" target="_blank">
+    <div class="thumb preview-v2">
+      <div class="sketch">
+        <div class="sk2-bg"></div>
+        <div class="sk2-grid"></div>
+        <!-- Top bar -->
+        <div style="position:absolute;top:8px;left:8px;right:8px;height:18px;background:rgba(0,255,159,0.03);border:1px solid rgba(0,255,159,0.15);display:flex;align-items:center;padding:0 8px;gap:5px;">
+          <div style="width:5px;height:5px;border-radius:50%;background:#00ff9f;box-shadow:0 0 5px #00ff9f;"></div>
+          <div style="width:40px;height:2px;background:rgba(0,255,159,0.3);border-radius:1px;"></div>
+          <div style="flex:1;"></div>
+          <div style="width:5px;height:5px;border-radius:50%;background:#00ff9f;opacity:0.5;"></div>
+          <div style="width:5px;height:5px;border-radius:50%;background:#ffe600;opacity:0.5;"></div>
+        </div>
+        <!-- Left panel -->
+        <div style="position:absolute;top:34px;left:8px;bottom:34px;width:58px;background:rgba(0,255,159,0.03);border:1px solid rgba(0,255,159,0.15);">
+          <div style="height:2px;background:rgba(0,255,159,0.2);margin:5px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.1);margin:4px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.08);margin:4px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.05);margin:4px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.05);margin:4px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.03);margin:4px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.03);margin:4px 5px 0;"></div>
+        </div>
+        <!-- Center radar -->
+        <div class="sk2-radar">
+          <div class="sk2-ring" style="width:100px;height:100px;"></div>
+          <div class="sk2-ring" style="width:66px;height:66px;"></div>
+          <div class="sk2-ring" style="width:34px;height:34px;"></div>
+          <div class="sk2-dot"></div>
+        </div>
+        <!-- Right panel -->
+        <div style="position:absolute;top:34px;right:8px;bottom:34px;width:58px;background:rgba(0,255,159,0.03);border:1px solid rgba(0,255,159,0.15);">
+          <div style="height:2px;background:rgba(0,255,159,0.15);margin:5px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.08);margin:4px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.05);margin:4px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.04);margin:4px 5px 0;"></div>
+          <div style="height:2px;background:rgba(0,255,159,0.04);margin:4px 5px 0;"></div>
+        </div>
+        <!-- Bottom bar -->
+        <div style="position:absolute;bottom:8px;left:8px;right:8px;height:18px;background:rgba(0,255,159,0.03);border:1px solid rgba(0,255,159,0.15);display:flex;align-items:center;padding:0 8px;gap:6px;">
+          <div style="width:30px;height:2px;background:rgba(0,255,159,0.3);border-radius:1px;"></div>
+          <div style="width:20px;height:2px;background:rgba(0,255,159,0.15);border-radius:1px;"></div>
+          <div style="flex:1;"></div>
+          <div style="width:50px;height:2px;background:rgba(0,255,159,0.08);border-radius:1px;"></div>
+        </div>
+      </div>
+      <div class="thumb-overlay"></div>
+    </div>
+    <div class="card-meta">
+      <span class="tag tag-v2">v2 · HUD</span>
+      <div class="card-name">Futuristic Sci-Fi HUD</div>
+      <div class="card-desc">Matrix-green neon on near-black. Radar-style gaze visualization, scan lines, corner brackets, and live data stream feed.</div>
+      <div class="card-link">Open preview →</div>
+    </div>
+  </a>
+
+  <!-- V3 -->
+  <a class="card" href="v3/index.html" target="_blank">
+    <div class="thumb preview-v3">
+      <div class="sketch">
+        <div class="sk3-bg"></div>
+        <div class="sk3-sidebar">
+          <div class="sk3-logo"></div>
+          <div class="sk3-nav-dot a"></div>
+          <div class="sk3-nav-dot"></div>
+          <div class="sk3-nav-dot"></div>
+          <div class="sk3-nav-dot"></div>
+        </div>
+        <div class="sk3-main" style="padding:8px;">
+          <!-- Topbar -->
+          <div style="background:#fff;border:1px solid #e4e7f0;border-radius:5px;height:22px;margin-bottom:6px;display:flex;align-items:center;padding:0 8px;gap:5px;">
+            <div style="flex:1;height:3px;background:#eceef6;border-radius:2px;"></div>
+            <div style="width:30px;height:12px;background:#5b6af0;border-radius:4px;"></div>
+          </div>
+          <!-- Grid -->
+          <div style="display:grid;grid-template-columns:1fr 60px;gap:5px;">
+            <div>
+              <div class="sk3-card">
+                <div class="sk3-stripe" style="background:linear-gradient(90deg,#5b6af0,#e84393);"></div>
+                <div style="height:55px;background:linear-gradient(135deg,#f5f6fd,#eceef8);border-radius:3px;display:flex;align-items:center;justify-content:center;margin-bottom:4px;">
+                  <div class="sk3-dot"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;">
+                  <div style="background:#f7f8fc;border:1px solid #eceef6;height:16px;border-radius:4px;"></div>
+                  <div style="background:#f7f8fc;border:1px solid #eceef6;height:16px;border-radius:4px;"></div>
+                  <div style="background:#f7f8fc;border:1px solid #eceef6;height:16px;border-radius:4px;"></div>
+                  <div style="background:#f7f8fc;border:1px solid #eceef6;height:16px;border-radius:4px;"></div>
+                </div>
+              </div>
+              <div class="sk3-card" style="margin-top:5px;">
+                <div class="sk3-stripe" style="background:linear-gradient(90deg,#22c55e,#5b6af0);"></div>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:5px;">
+                  <div style="height:10px;background:#f7f8fc;border-radius:4px;"></div>
+                  <div style="height:10px;background:#f7f8fc;border-radius:4px;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="sk3-card" style="padding:6px;">
+              <div class="sk3-stripe" style="background:linear-gradient(90deg,#e84393,transparent);"></div>
+              <div style="height:3px;background:linear-gradient(90deg,#5b6af0,#e84393);border-radius:2px;margin:3px 0;"></div>
+              <div class="sk3-bar"><div class="sk3-bar-fill" style="width:60%;background:#5b6af0;"></div></div>
+              <div class="sk3-bar"><div class="sk3-bar-fill" style="width:30%;background:#e84393;"></div></div>
+              <div class="sk3-bar"><div class="sk3-bar-fill" style="width:45%;background:#22c55e;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="thumb-overlay"></div>
+    </div>
+    <div class="card-meta card-meta-v3">
+      <span class="tag tag-v3">v3 · Aura</span>
+      <div class="card-name">Modern Flat Light</div>
+      <div class="card-desc">Clean white dashboard with indigo/pink accents. Card-based layout with colored top stripes, pill-style status chips and smooth toggles.</div>
+      <div class="card-link">Open preview →</div>
+    </div>
+  </a>
+
+  <!-- V4 -->
+  <a class="card" href="v4/index.html" target="_blank">
+    <div class="thumb preview-v4">
+      <div class="sketch">
+        <div class="sk4-bg"></div>
+        <!-- Top bar -->
+        <div class="sk4-top">
+          <div class="sk4-led" style="background:#ff006e;box-shadow:0 0 4px #ff006e;"></div>
+          <div style="width:35px;height:2px;background:linear-gradient(90deg,#ff006e,#8b00ff);border-radius:1px;"></div>
+          <div style="flex:1;"></div>
+          <div class="sk4-led" style="background:#00e5ff;box-shadow:0 0 4px #00e5ff;"></div>
+          <div class="sk4-led" style="background:#ffe600;box-shadow:0 0 4px #ffe600;"></div>
+        </div>
+        <!-- Sidebar -->
+        <div class="sk4-sidebar">
+          <div class="sk4-nav-line a"></div>
+          <div class="sk4-nav-line" style="background:rgba(139,0,255,0.05);"></div>
+          <div class="sk4-nav-line" style="background:rgba(139,0,255,0.05);"></div>
+          <div class="sk4-nav-line" style="background:rgba(139,0,255,0.05);"></div>
+          <div class="sk4-nav-line" style="background:rgba(139,0,255,0.05);"></div>
+        </div>
+        <!-- Main -->
+        <div class="sk4-main">
+          <div class="sk4-panel">
+            <div class="sk4-canvas">
+              <!-- Gaze trail sketch -->
+              <svg width="100%" height="100%" viewBox="0 0 160 70" style="position:absolute;inset:0;">
+                <path d="M20,35 Q40,15 80,30 Q120,45 140,35" stroke="rgba(255,0,110,0.3)" fill="none" stroke-width="1"/>
+                <path d="M20,35 Q40,15 80,30 Q120,45 140,35" stroke="rgba(139,0,255,0.2)" fill="none" stroke-width="2"/>
+              </svg>
+              <div class="sk4-gaze"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:4px;">
+              <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(139,0,255,0.15);height:18px;position:relative;overflow:hidden;">
+                <div style="position:absolute;top:0;left:0;right:0;height:1px;background:#8b00ff;opacity:0.4;"></div>
+              </div>
+              <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(139,0,255,0.15);height:18px;position:relative;overflow:hidden;">
+                <div style="position:absolute;top:0;left:0;right:0;height:1px;background:#ff006e;opacity:0.4;"></div>
+              </div>
+              <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(139,0,255,0.15);height:18px;position:relative;overflow:hidden;">
+                <div style="position:absolute;top:0;left:0;right:0;height:1px;background:#00e5ff;opacity:0.4;"></div>
+              </div>
+              <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(139,0,255,0.15);height:18px;position:relative;overflow:hidden;">
+                <div style="position:absolute;top:0;left:0;right:0;height:1px;background:#ffe600;opacity:0.4;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+            <div class="sk4-panel" style="padding:5px;">
+              <div style="height:2px;background:rgba(255,0,110,0.2);margin:2px 0;border-radius:1px;"></div>
+              <div style="height:2px;background:rgba(255,0,110,0.12);margin:4px 0;border-radius:1px;"></div>
+              <div style="height:2px;background:rgba(255,0,110,0.08);margin:4px 0;border-radius:1px;"></div>
+            </div>
+            <div class="sk4-panel" style="padding:5px;">
+              <div style="height:2px;background:rgba(0,229,255,0.2);margin:2px 0;border-radius:1px;"></div>
+              <div style="height:2px;background:rgba(0,229,255,0.12);margin:4px 0;border-radius:1px;"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Right col -->
+        <div class="sk4-right">
+          <div class="sk4-row" style="background:rgba(0,229,255,0.15);"></div>
+          <div class="sk4-row"></div>
+          <div class="sk4-row"></div>
+          <div class="sk4-row"></div>
+          <div class="sk4-row"></div>
+          <div style="margin:8px 6px 0;height:12px;background:rgba(255,0,110,0.15);border:1px solid rgba(255,0,110,0.3);"></div>
+        </div>
+        <!-- Bottom bar -->
+        <div class="sk4-bottom">
+          <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#8b00ff,#ff006e,#00e5ff,transparent);opacity:0.4;"></div>
+        </div>
+      </div>
+      <div class="thumb-overlay"></div>
+    </div>
+    <div class="card-meta">
+      <span class="tag tag-v4">v4 · Matrix</span>
+      <div class="card-name">Cyberpunk Gaming</div>
+      <div class="card-desc">Deep purple/black with magenta and cyan neon. Diamond gaze indicator, glitch animations, ticker tape, and aggressive diagonal styling.</div>
+      <div class="card-link">Open preview →</div>
+    </div>
+  </a>
+
+</div>
+
+<div style="max-width:1100px;margin:24px auto 0;font-size:11px;color:#333350;font-family:'JetBrains Mono',monospace;letter-spacing:0.05em;">
+  Click any card to open the interactive preview · All versions include live gaze simulation, working sliders, profile switching, and calibration flow
+</div>
+
+</body>
+</html>

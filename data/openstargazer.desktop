@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=OpenStarGazer
+GenericName=Eye Tracker Configuration
+Comment=Configure Tobii Eye Tracker 5 for Star Citizen on Linux
+Exec=osg-config
+Icon=openstargazer
+Terminal=false
+Type=Application
+Categories=Utility;Settings;
+Keywords=tobii;eyetracking;head tracking;star citizen;openstargazer;
+StartupNotify=true
