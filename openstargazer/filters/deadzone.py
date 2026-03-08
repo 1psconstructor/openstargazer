@@ -36,8 +36,9 @@ class DeadzoneFilter:
         Returns the filtered (x, y), clamped to [0..1].
         """
         if self._cx is None:
-            self._cx, self._cy = x, y
-            return x, y
+            self._cx = max(0.0, min(1.0, x))
+            self._cy = max(0.0, min(1.0, y))
+            return self._cx, self._cy
 
         dx = x - self._cx
         dy = y - self._cy

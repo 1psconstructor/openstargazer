@@ -339,8 +339,9 @@ class MockTrackerManager(TrackerManager):
 
             fps_counter += 1
             now = time.monotonic()
-            if now - fps_ts >= 1.0:
-                self._fps = fps_counter / (now - fps_ts)
+            elapsed = now - fps_ts
+            if elapsed >= 0.1:
+                self._fps = fps_counter / elapsed
                 fps_counter = 0
                 fps_ts = now
 
