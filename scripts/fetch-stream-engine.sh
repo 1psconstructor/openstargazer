@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
 # fetch-stream-engine.sh – Download Tobii Stream Engine binaries for Linux
 #
-# Sources community-provided binaries from GitHub releases.
-# The Tobii Stream Engine .so is not open-source, but has been distributed
+# Sources files directly from the johngebbie/tobii_4C_for_linux repository.
+# The Tobii Stream Engine .so is not open-source but has been distributed
 # with community eye-tracking projects under permissive terms.
 #
-# Installs to: ~/.local/share/openstargazer/{bin,lib}/
+# libtobii_stream_engine.so → ~/.local/share/openstargazer/lib/
+# tobiiusbserviced          → /usr/local/sbin/              (system, needs sudo)
+# libtobii_*.so (3 libs)   → /usr/local/lib/tobiiusb/      (system, needs sudo)
+# tobiiusb.service          → /etc/systemd/system/          (system, needs sudo)
 set -euo pipefail
 
 INSTALL_DIR="${HOME}/.local/share/openstargazer"
-BIN_DIR="${INSTALL_DIR}/bin"
 LIB_DIR="${INSTALL_DIR}/lib"
 
-# Community mirror – update URL if release moves
-REPO_BASE="https://github.com/johngebbie/tobii_4C_for_linux/releases/latest/download"
-
-SO_NAME="libtobii_stream_engine.so"
-USBSVC_NAME="tobiiusbservice"
+REPO_RAW="https://raw.githubusercontent.com/johngebbie/tobii_4C_for_linux/main"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -29,7 +27,7 @@ error() { echo -e "${RED}[openstargazer]${NC} $*" >&2; }
 
 # ---------------------------------------------------------------------------
 check_deps() {
-    for cmd in curl tar; do
+    for cmd in curl; do
         if ! command -v "$cmd" &>/dev/null; then
             error "Required tool not found: $cmd"
             exit 1
@@ -38,92 +36,104 @@ check_deps() {
 }
 
 # ---------------------------------------------------------------------------
-fetch_file() {
-    local url="$1"
-    local dest="$2"
-    info "Downloading: $url"
-    if ! curl -fsSL --retry 3 -o "$dest" "$url"; then
-        return 1
-    fi
-    return 0
+detect_arch() {
+    case "$(uname -m)" in
+        x86_64)  echo "x64" ;;
+        i*86)    echo "x86" ;;
+        *)
+            warn "Unknown architecture $(uname -m), defaulting to x64"
+            echo "x64"
+            ;;
+    esac
 }
 
 # ---------------------------------------------------------------------------
-install_from_release() {
+fetch_file() {
+    local url="$1"
+    local dest="$2"
+    local desc="${3:-$dest}"
+    info "Downloading: $desc"
+    if ! curl -fsSL --retry 3 -o "$dest" "$url"; then
+        error "Failed to download: $url"
+        return 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+install_stream_engine_so() {
+    local arch
+    arch="$(detect_arch)"
+
+    local url="${REPO_RAW}/lib/lib/${arch}/libtobii_stream_engine.so"
+    local dest="${LIB_DIR}/libtobii_stream_engine.so"
+
+    mkdir -p "${LIB_DIR}"
+    if fetch_file "$url" "$dest" "libtobii_stream_engine.so (${arch})"; then
+        chmod 755 "$dest"
+        info "Installed: ${dest}"
+    else
+        error "Could not download libtobii_stream_engine.so"
+        echo
+        echo "Download manually from:"
+        echo "  https://github.com/johngebbie/tobii_4C_for_linux/tree/main/lib/lib/${arch}"
+        echo "and place as: ${dest}"
+        return 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+install_usb_service() {
+    local sbin_dir="/usr/local/sbin"
+    local lib_dir="/usr/local/lib/tobiiusb"
+    local service_dir="/etc/systemd/system"
     local tmpdir
     tmpdir="$(mktemp -d)"
     trap "rm -rf '$tmpdir'" RETURN
 
-    local tarball="${tmpdir}/tobii-stream-engine.tar.gz"
+    info "Installing tobiiusbserviced (system-wide, requires sudo)…"
 
-    # Try primary source
-    local url="${REPO_BASE}/tobii-stream-engine-linux.tar.gz"
-    if ! fetch_file "$url" "$tarball"; then
-        warn "Primary source failed, trying alternative…"
-        url="${REPO_BASE}/stream_engine_linux.tar.gz"
-        if ! fetch_file "$url" "$tarball"; then
-            error "Could not download Stream Engine binaries."
-            echo
-            echo "Please download manually:"
-            echo "  ${REPO_BASE}/"
-            echo
-            echo "Extract and place:"
-            echo "  libtobii_stream_engine.so → ${LIB_DIR}/"
-            echo "  tobiiusbservice           → ${BIN_DIR}/"
-            return 1
-        fi
-    fi
+    # Download daemon binary
+    fetch_file \
+        "${REPO_RAW}/tobii_usb_service/usr/local/sbin/tobiiusbserviced" \
+        "${tmpdir}/tobiiusbserviced" \
+        "tobiiusbserviced"
 
-    info "Extracting…"
-    tar -xzf "$tarball" -C "$tmpdir"
+    # Download the three support libraries
+    for lib in libtobii_libc.so libtobii_osal.so libtobii_usb.so; do
+        fetch_file \
+            "${REPO_RAW}/tobii_usb_service/usr/local/lib/tobiiusb/${lib}" \
+            "${tmpdir}/${lib}" \
+            "${lib}"
+    done
 
-    # Find and copy the files
-    local so_file usb_svc
-    so_file="$(find "$tmpdir" -name "${SO_NAME}" | head -1)"
-    usb_svc="$(find "$tmpdir" -name "${USBSVC_NAME}" | head -1)"
+    # Download service unit
+    fetch_file \
+        "${REPO_RAW}/tobii_usb_service/etc/systemd/system/tobiiusb.service" \
+        "${tmpdir}/tobiiusb.service" \
+        "tobiiusb.service"
 
-    if [[ -z "$so_file" ]]; then
-        error "Could not find ${SO_NAME} in downloaded archive"
-        ls "$tmpdir"
-        return 1
-    fi
+    # Install (needs sudo)
+    sudo mkdir -p "$lib_dir"
+    sudo install -m 755 "${tmpdir}/tobiiusbserviced" "${sbin_dir}/tobiiusbserviced"
+    info "Installed: ${sbin_dir}/tobiiusbserviced"
 
-    mkdir -p "${LIB_DIR}" "${BIN_DIR}"
-    cp "$so_file" "${LIB_DIR}/${SO_NAME}"
-    info "Installed: ${LIB_DIR}/${SO_NAME}"
+    for lib in libtobii_libc.so libtobii_osal.so libtobii_usb.so; do
+        sudo install -m 644 "${tmpdir}/${lib}" "${lib_dir}/${lib}"
+        info "Installed: ${lib_dir}/${lib}"
+    done
 
-    if [[ -n "$usb_svc" ]]; then
-        cp "$usb_svc" "${BIN_DIR}/${USBSVC_NAME}"
-        chmod +x "${BIN_DIR}/${USBSVC_NAME}"
-        info "Installed: ${BIN_DIR}/${USBSVC_NAME}"
-    else
-        warn "${USBSVC_NAME} not found in archive – may not be needed for ET5"
-    fi
+    sudo install -m 644 "${tmpdir}/tobiiusb.service" "${service_dir}/tobiiusb.service"
+    info "Installed: ${service_dir}/tobiiusb.service"
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now tobiiusb.service
+    info "tobiiusb.service enabled and started ✓"
 }
 
 # ---------------------------------------------------------------------------
-install_usbservice_systemd() {
-    local service_dir="${HOME}/.config/systemd/user"
-    mkdir -p "$service_dir"
-
-    cat > "${service_dir}/tobii-usbservice.service" <<EOF
-[Unit]
-Description=Tobii USB Service
-After=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=${BIN_DIR}/tobiiusbservice
-Restart=on-failure
-RestartSec=2
-
-[Install]
-WantedBy=graphical-session.target
-EOF
-
-    systemctl --user daemon-reload
-    systemctl --user enable tobii-usbservice.service
-    info "tobii-usbservice systemd unit installed and enabled"
+already_installed() {
+    [[ -f "${LIB_DIR}/libtobii_stream_engine.so" ]] && \
+    [[ -f "/usr/local/sbin/tobiiusbserviced" ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -133,29 +143,20 @@ main() {
 
     check_deps
 
-    if [[ -f "${LIB_DIR}/${SO_NAME}" ]] && [[ -f "${BIN_DIR}/${USBSVC_NAME}" ]]; then
+    if already_installed; then
         info "Stream Engine already installed in ${INSTALL_DIR}"
         read -rp "Re-install? [y/N] " ans
         if [[ "${ans,,}" != "y" ]]; then
             info "Skipping re-installation"
-        else
-            install_from_release
+            return 0
         fi
-    else
-        install_from_release
     fi
 
-    if [[ -f "${BIN_DIR}/${USBSVC_NAME}" ]]; then
-        if command -v systemctl &>/dev/null; then
-            read -rp "Install tobiiusbservice as systemd --user service? [Y/n] " ans
-            if [[ "${ans,,}" != "n" ]]; then
-                install_usbservice_systemd
-            fi
-        fi
-    fi
+    install_stream_engine_so
+    install_usb_service
 
     echo
-    info "Done! Stream Engine installed to ${INSTALL_DIR}"
+    info "Done! Stream Engine installed."
     info "Test with: osg-daemon --mock"
 }
 

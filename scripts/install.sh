@@ -135,7 +135,11 @@ install_opentrack_fedora() {
 # ---------------------------------------------------------------------------
 fetch_stream_engine() {
     header "Fetching Tobii Stream Engine…"
-    bash "${SCRIPT_DIR}/fetch-stream-engine.sh"
+    if ! bash "${SCRIPT_DIR}/fetch-stream-engine.sh"; then
+        warn "Stream Engine could not be installed automatically."
+        warn "Install it manually, then run: osg-setup"
+        warn "See: https://github.com/johngebbie/tobii_4C_for_linux"
+    fi
 }
 
 # ---------------------------------------------------------------------------
