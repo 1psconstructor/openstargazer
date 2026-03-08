@@ -51,6 +51,12 @@ class MainWindow:
         self._profile_dropdown.set_tooltip_text("Active profile")
         header.pack_end(self._profile_dropdown)
 
+        # Ko-fi donate button
+        donate_btn = Gtk.Button(label="☕")
+        donate_btn.set_tooltip_text("Buy the dev a coffee – ko-fi.com/1psconstructor")
+        donate_btn.connect("clicked", self._on_donate_clicked)
+        header.pack_end(donate_btn)
+
         # Setup button
         setup_btn = Gtk.Button(label="Star Citizen Setup")
         setup_btn.add_css_class("suggested-action")
@@ -336,6 +342,12 @@ class MainWindow:
     def _on_curves_clicked(self, _btn) -> None:
         from gui.curves_editor import CurvesEditorWindow
         CurvesEditorWindow(parent=self._win).present()
+
+    def _on_donate_clicked(self, _btn) -> None:
+        import gi
+        gi.require_version("Gtk", "4.0")
+        from gi.repository import Gio
+        Gio.AppInfo.launch_default_for_uri("https://ko-fi.com/1psconstructor", None)
 
     def _on_setup_clicked(self, _btn) -> None:
         import subprocess, sys

@@ -295,6 +295,10 @@ def main() -> None:
     print("  Open the GUI:")
     print("    osg-config")
     print()
+    print("  ☕ openstargazer saved you some headache?")
+    print("     Consider buying the dev a coffee:")
+    print("     https://ko-fi.com/1psconstructor")
+    print()
 
 
 if __name__ == "__main__":
