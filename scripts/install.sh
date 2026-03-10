@@ -130,6 +130,16 @@ _has_user_data() {
     [[ -d "${HOME}/.local/share/openstargazer" ]]
 }
 
+_is_opentrack_installed() {
+    command -v opentrack &>/dev/null || \
+    flatpak list --app 2>/dev/null | grep -q "io.github.opentrack.OpenTrack"
+}
+
+_is_opentrack_profile_installed() {
+    [[ -f "${HOME}/.config/opentrack/tobii5-starcitizen.ini" ]] || \
+    [[ -f "${HOME}/.var/app/io.github.opentrack.OpenTrack/config/opentrack/tobii5-starcitizen.ini" ]]
+}
+
 # ===========================================================================
 # INSTALL FUNCTIONS
 # ===========================================================================
@@ -196,28 +206,83 @@ install_system_deps() {
 install_opentrack_fedora() {
     header "Installing opentrack..."
 
+    # Already installed natively or as Flatpak?
     if command -v opentrack &>/dev/null; then
-        info "opentrack already installed"
+        info "opentrack already installed (native)"
+        SUMMARY_OK+=("opentrack (already installed)")
+        return
+    fi
+    if flatpak list --app 2>/dev/null | grep -q "io.github.opentrack.OpenTrack"; then
+        info "opentrack already installed (Flatpak)"
+        SUMMARY_OK+=("opentrack (Flatpak, already installed)")
         return
     fi
 
-    if _run_privileged dnf install -y opentrack &>/dev/null; then
+    # Try standard dnf repos first (works if RPM Fusion is already enabled)
+    if _run_privileged dnf install -y opentrack 2>/dev/null; then
         info "opentrack installed via dnf"
+        SUMMARY_OK+=("opentrack (dnf)")
         return
     fi
 
-    warn "opentrack not found in enabled repositories."
-    warn "opentrack is available via RPM Fusion or as a Flatpak."
+    # Not in repos – ask user which method to use
+    warn "opentrack is not in the enabled dnf repositories."
     echo
-    echo "  Option A -- Enable RPM Fusion Free and install:"
-    echo "    sudo dnf install -y https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-\$(rpm -E %fedora).noarch.rpm"
-    echo "    sudo dnf install -y opentrack"
+    echo "  Choose an installation method:"
+    echo "  1) Enable RPM Fusion Free and install via dnf  (native, recommended)"
+    echo "  2) Install via Flatpak from Flathub"
+    echo "  3) Skip (install manually later)"
     echo
-    echo "  Option B -- Install via Flatpak (Flathub):"
-    echo "    flatpak install -y flathub io.github.opentrack.OpenTrack"
-    echo
-    warn "Continuing installation without opentrack -- install it manually before using head tracking."
-    SUMMARY_SKIP+=("opentrack (not in repos, see instructions above)")
+    read -rp "  Selection [1-3]: " ot_choice
+
+    case "${ot_choice:-3}" in
+        1)
+            info "Enabling RPM Fusion Free..."
+            local fedora_ver
+            fedora_ver="$(rpm -E %fedora)"
+            local rpmfusion_url="https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-${fedora_ver}.noarch.rpm"
+            if _run_privileged dnf install -y "$rpmfusion_url"; then
+                info "RPM Fusion Free enabled"
+                if _run_privileged dnf install -y opentrack; then
+                    info "opentrack installed via RPM Fusion"
+                    SUMMARY_OK+=("opentrack (RPM Fusion)")
+                else
+                    error "opentrack installation failed after enabling RPM Fusion"
+                    SUMMARY_FAIL+=("opentrack (RPM Fusion install failed)")
+                fi
+            else
+                error "Failed to enable RPM Fusion Free"
+                SUMMARY_FAIL+=("opentrack (RPM Fusion enable failed)")
+            fi
+            ;;
+        2)
+            if ! command -v flatpak &>/dev/null; then
+                warn "flatpak not installed -- installing it first..."
+                _run_privileged dnf install -y flatpak
+                _run_privileged flatpak remote-add --if-not-exists flathub \
+                    https://dl.flathub.org/repo/flathub.flatpakrepo
+            fi
+            info "Installing opentrack via Flatpak..."
+            if flatpak install -y flathub io.github.opentrack.OpenTrack; then
+                info "opentrack installed as Flatpak"
+                info "Note: Flatpak config dir is ~/.var/app/io.github.opentrack.OpenTrack/config/opentrack/"
+                info "The OpenTrack profile will be written there automatically."
+                SUMMARY_OK+=("opentrack (Flatpak)")
+            else
+                error "Flatpak install failed"
+                SUMMARY_FAIL+=("opentrack (Flatpak install failed)")
+            fi
+            ;;
+        *)
+            warn "Skipping opentrack installation."
+            warn "Install manually before using head tracking:"
+            echo "    sudo dnf install -y https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-\$(rpm -E %fedora).noarch.rpm"
+            echo "    sudo dnf install -y opentrack"
+            echo "  or:"
+            echo "    flatpak install flathub io.github.opentrack.OpenTrack"
+            SUMMARY_SKIP+=("opentrack (skipped, install manually)")
+            ;;
+    esac
 }
 
 # ---------------------------------------------------------------------------
@@ -318,6 +383,83 @@ install_systemd_service() {
     systemctl --user daemon-reload
     systemctl --user enable openstargazer.service
     SUMMARY_OK+=("systemd user service")
+}
+
+# ---------------------------------------------------------------------------
+configure_opentrack_profile() {
+    header "Configuring OpenTrack for Star Citizen..."
+
+    if ! _is_opentrack_installed; then
+        warn "opentrack is not installed -- skipping profile generation"
+        SUMMARY_SKIP+=("OpenTrack profile (opentrack not installed)")
+        return
+    fi
+
+    # Determine config dir (native vs Flatpak)
+    local ot_config_dir="${HOME}/.config/opentrack"
+    if flatpak list --app 2>/dev/null | grep -q "io.github.opentrack.OpenTrack"; then
+        local flatpak_cfg="${HOME}/.var/app/io.github.opentrack.OpenTrack/config/opentrack"
+        if [[ -d "$flatpak_cfg" ]] || ! [[ -d "$ot_config_dir" ]]; then
+            ot_config_dir="$flatpak_cfg"
+            info "Using Flatpak OpenTrack config dir: $ot_config_dir"
+        fi
+    fi
+
+    mkdir -p "$ot_config_dir"
+
+    # Generate profile via Python (wizard step 4) if package is installed
+    if _is_pip_installed; then
+        info "Running osg-setup to generate OpenTrack profile..."
+        "$PYTHON_CMD" -m openstargazer.setup.wizard 2>/dev/null || true
+        if _is_opentrack_profile_installed; then
+            SUMMARY_OK+=("OpenTrack Star Citizen profile")
+            return
+        fi
+    fi
+
+    # Fallback: write a minimal working profile directly
+    local profile_file="${ot_config_dir}/tobii5-starcitizen.ini"
+    info "Writing minimal OpenTrack profile to $profile_file"
+    cat > "$profile_file" <<'EOF'
+[General]
+profile-name=tobii5-starcitizen
+version=2026
+
+[tracker]
+dll=opentrack-input-udp
+name=UDP over network
+
+[filter]
+dll=
+name=(no filter)
+
+[output]
+dll=opentrack-output-wine
+name=Wine
+
+[tracker-dll-config]
+port=4242
+
+[output-dll-config]
+protocol=1
+EOF
+
+    # Set as default profile
+    local ot_ini="${ot_config_dir}/opentrack.ini"
+    if [[ -f "$ot_ini" ]]; then
+        # Update existing entry
+        if grep -q "^profile=" "$ot_ini"; then
+            sed -i "s|^profile=.*|profile=tobii5-starcitizen.ini|" "$ot_ini"
+        else
+            echo "profile=tobii5-starcitizen.ini" >> "$ot_ini"
+        fi
+    else
+        printf '[General]\nprofile=tobii5-starcitizen.ini\n' > "$ot_ini"
+    fi
+
+    info "Profile installed. Wine prefix and runner must be set in OpenTrack → Output → Wine."
+    warn "Run 'osg-setup' after installing the Python package to auto-configure Wine paths."
+    SUMMARY_OK+=("OpenTrack profile (minimal – run osg-setup to set Wine paths)")
 }
 
 # ---------------------------------------------------------------------------
@@ -584,6 +726,24 @@ do_repair() {
         info "Desktop entry OK"
     fi
 
+    if ! _is_opentrack_installed; then
+        warn "opentrack not installed"
+        if command -v dnf &>/dev/null; then
+            install_opentrack_fedora
+        else
+            warn "Install opentrack via your package manager before using head tracking"
+            SUMMARY_SKIP+=("opentrack (not installed)")
+        fi
+    else
+        info "opentrack OK"
+        if ! _is_opentrack_profile_installed; then
+            warn "OpenTrack Star Citizen profile missing -- regenerating"
+            configure_opentrack_profile
+        else
+            info "OpenTrack Star Citizen profile OK"
+        fi
+    fi
+
     print_summary
 }
 
@@ -708,13 +868,14 @@ do_custom_uninstall() {
 
 do_fresh_install() {
     check_python
-    install_system_deps
+    install_system_deps       # installs opentrack for Arch/apt; triggers install_opentrack_fedora for Fedora
     fetch_stream_engine
     install_python_package
     install_udev_rules
     install_systemd_service
     install_desktop_entry
-    run_setup_wizard
+    configure_opentrack_profile
+    run_setup_wizard          # osg-setup: detects LUG, finalises OpenTrack Wine paths
 
     print_summary
 

@@ -16,8 +16,38 @@ from openstargazer.setup.lug_detector import LUGInstall
 
 log = logging.getLogger(__name__)
 
-_OPENTRACK_CONFIG_DIR = Path.home() / ".config" / "opentrack"
+_OPENTRACK_CONFIG_DIR_NATIVE  = Path.home() / ".config" / "opentrack"
+_OPENTRACK_CONFIG_DIR_FLATPAK = (
+    Path.home() / ".var" / "app" / "io.github.opentrack.OpenTrack" / "config" / "opentrack"
+)
 _PROFILE_NAME = "tobii5-starcitizen"
+
+
+def _find_opentrack_config_dir() -> Path:
+    """
+    Return the correct OpenTrack config directory.
+    Prefers native install; falls back to Flatpak dir if native dir is absent
+    but Flatpak dir exists.  Creates native dir as last resort.
+    """
+    if _OPENTRACK_CONFIG_DIR_NATIVE.exists():
+        return _OPENTRACK_CONFIG_DIR_NATIVE
+    if _OPENTRACK_CONFIG_DIR_FLATPAK.exists():
+        log.info("Using Flatpak OpenTrack config dir: %s", _OPENTRACK_CONFIG_DIR_FLATPAK)
+        return _OPENTRACK_CONFIG_DIR_FLATPAK
+    # Neither exists yet – check if Flatpak OpenTrack is installed
+    import shutil, subprocess
+    if shutil.which("flatpak"):
+        try:
+            result = subprocess.run(
+                ["flatpak", "list", "--app"],
+                capture_output=True, text=True, timeout=5
+            )
+            if "io.github.opentrack.OpenTrack" in result.stdout:
+                log.info("Flatpak OpenTrack detected – using Flatpak config dir")
+                return _OPENTRACK_CONFIG_DIR_FLATPAK
+        except Exception:
+            pass
+    return _OPENTRACK_CONFIG_DIR_NATIVE
 
 
 class OpenTrackConfigGenerator:
@@ -114,20 +144,21 @@ z\\clamp=1
 
     def install(self, lug: LUGInstall, udp_port: int = 4242) -> Path:
         """
-        Generate profile, write to ~/.config/opentrack/, and set as default.
+        Generate profile, write to the correct OpenTrack config directory
+        (native or Flatpak), and set it as the default profile.
         Returns the path to the installed profile file.
         """
-        _OPENTRACK_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        config_dir = _find_opentrack_config_dir()
+        config_dir.mkdir(parents=True, exist_ok=True)
 
-        # Try INI format first (OpenTrack 2.3+), fallback to XML
         content = self.generate(lug, udp_port)
-        profile_path = _OPENTRACK_CONFIG_DIR / f"{_PROFILE_NAME}.ini"
+        profile_path = config_dir / f"{_PROFILE_NAME}.ini"
 
         profile_path.write_text(content, encoding="utf-8")
         log.info("OpenTrack profile written to %s", profile_path)
 
         # Write the "last used profile" pointer so OpenTrack auto-loads it
-        last_profile_file = _OPENTRACK_CONFIG_DIR / "opentrack.ini"
+        last_profile_file = config_dir / "opentrack.ini"
         if last_profile_file.exists():
             _update_ini_value(last_profile_file, "General", "profile",
                               f"{_PROFILE_NAME}.ini")
