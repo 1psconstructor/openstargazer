@@ -58,9 +58,18 @@ class LUGInstall:
 class LUGDetector:
     """Detects and parses a LUG-Helper Star Citizen installation."""
 
+    def __init__(self) -> None:
+        self._config_dir: Path | None = None
+
     @property
     def CONFIG_DIR(self) -> Path:
+        if self._config_dir is not None:
+            return self._config_dir
         return _get_lug_config_dir()
+
+    @CONFIG_DIR.setter
+    def CONFIG_DIR(self, value: Path) -> None:
+        self._config_dir = value
 
     def detect(self) -> LUGInstall | None:
         """
