@@ -98,6 +98,32 @@ cd openstargazer
 
 ---
 
+### Interactive Setup Menu
+
+The script always presents a menu on startup:
+
+```
+==========================================
+   openstargazer Setup
+==========================================
+
+  1) Neuinstallation
+  2) Reparatur (fehlende Komponenten nachinstallieren)
+  3) Deinstallation -- vollstaendig
+  4) Deinstallation -- benutzerdefiniert
+  5) Beenden
+```
+
+| Option | Description |
+|--------|-------------|
+| **1 – Fresh install** | Full installation of all components |
+| **2 – Repair** | Checks each component and reinstalls only what is missing |
+| **3 – Full uninstall** | Removes all components (with confirmation prompt) |
+| **4 – Custom uninstall** | Shows all components with status, select by number |
+| **5 – Exit** | Quit without action |
+
+---
+
 ### 3.1 Fedora
 
 ```bash
@@ -259,48 +285,74 @@ python3 -m openstargazer.setup.wizard
 
 ## 5. Uninstallation
 
-### Complete Uninstall
+### Via the install script (recommended)
 
 ```bash
-# 1. Stop and disable services
-systemctl --user stop openstargazer.service
-systemctl --user disable openstargazer.service
-systemctl --user stop tobii-usbservice.service
-systemctl --user disable tobii-usbservice.service
+cd scripts
+./install.sh
+# → Select option 3 (full) or option 4 (custom)
+```
 
-# 2. Remove service files
+**Option 3 – Full uninstall** removes after confirmation:
+- systemd user service (stop + disable + file deletion)
+- udev rules
+- Tobii USB service and binaries
+- Python package / venv / symlinks
+- Desktop entry and icon
+- User data (`~/.config/openstargazer`) – **separate prompt, default: No**
+
+**Option 4 – Custom uninstall** shows all components with their current installation status and lets you select individual ones by number:
+
+```
+  1) systemd user service (openstargazer.service)  [installed]
+  2) udev rules (70-openstargazer.rules)            [installed]
+  3) Tobii USB service (tobiiusb.service)           [installed]
+  4) Tobii binaries (libtobii_stream_engine.so ...) [installed]
+  5) Python package (openstargazer)                 [installed]
+  6) Desktop entry + icon                           [installed]
+  7) User data (~/.config/openstargazer ...)        [exists]
+
+  Selection: 1,2,5
+```
+
+### Manual uninstall (fallback)
+
+If the script is not available:
+
+```bash
+# Stop and disable services
+systemctl --user stop openstargazer.service 2>/dev/null || true
+systemctl --user disable openstargazer.service 2>/dev/null || true
+sudo systemctl stop tobiiusb.service 2>/dev/null || true
+sudo systemctl disable tobiiusb.service 2>/dev/null || true
+
+# Remove service files
 rm -f ~/.config/systemd/user/openstargazer.service
-rm -f ~/.config/systemd/user/tobii-usbservice.service
-systemctl --user daemon-reload
+sudo rm -f /etc/systemd/system/tobiiusb.service
+systemctl --user daemon-reload && sudo systemctl daemon-reload
 
-# 3. Remove udev rules
+# Remove udev rules
 sudo rm -f /etc/udev/rules.d/70-openstargazer.rules
 sudo udevadm control --reload-rules
 
-# 4. Remove desktop entry and icon
+# Remove desktop entry and icon
 rm -f ~/.local/share/applications/openstargazer.desktop
 rm -f ~/.local/share/icons/hicolor/scalable/apps/openstargazer.svg
 
-# 5. Remove Python package and venv
+# Remove Python package and venv
 pip uninstall openstargazer 2>/dev/null || true
 rm -rf ~/.local/share/openstargazer/venv
+rm -f ~/.local/bin/osg-daemon ~/.local/bin/osg-config ~/.local/bin/osg-setup
 
-# 6. Remove symlinks (if venv was used)
-rm -f ~/.local/bin/osg-daemon
-rm -f ~/.local/bin/osg-config
-rm -f ~/.local/bin/osg-setup
+# Remove Tobii binaries
+rm -f ~/.local/share/openstargazer/lib/libtobii_stream_engine.so
+sudo rm -f /usr/local/sbin/tobiiusbserviced
+sudo rm -rf /usr/local/lib/tobiiusb
 
-# 7. Remove Stream Engine binaries
-rm -rf ~/.local/share/openstargazer/bin
-rm -rf ~/.local/share/openstargazer/lib
-
-# 8. Remove configuration (OPTIONAL – deletes all settings!)
+# Remove configuration (OPTIONAL – deletes all settings!)
 rm -rf ~/.config/openstargazer/
 
-# 9. Remove OpenTrack profile (OPTIONAL)
-rm -f ~/.config/opentrack/tobii5-starcitizen.ini
-
-# 10. Remove user from plugdev (Debian/Ubuntu/Arch)
+# Remove user from plugdev (Debian/Ubuntu/Arch)
 sudo gpasswd -d "$USER" plugdev
 ```
 
@@ -399,8 +451,8 @@ UDP output in OpenTrack protocol (48-byte packet, 6× little-endian double).
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `enabled` | Bool | `true` | Enable/disable UDP output |
-| `host` | String | `"127.0.0.1"` | Target IP for UDP packets. Loopback for local OpenTrack. |
-| `port` | Int | `4242` | UDP port. Must match OpenTrack setting. |
+| `host` | String | `"127.0.0.1"` | Target IP for UDP packets. Loopback for local OpenTrack. For remote setups, edit `config.toml` directly (loopback-only restriction applies in the GUI). |
+| `port` | Int | `4242` | UDP port. Must match OpenTrack setting. Valid range: 1024–65535. |
 
 ---
 
@@ -505,6 +557,12 @@ The GTK4 user interface. Shows:
 
 **Note:** The GUI communicates with the daemon via a Unix socket (`~/.local/share/openstargazer/daemon.sock`). The daemon must be running.
 
+**Mock mode** – run the GUI without any hardware or daemon:
+```bash
+osg-config --mock
+```
+Starts the GUI with a built-in simulation client (no daemon required). Useful for testing the UI and configuring curves offline.
+
 ---
 
 ### osg-setup (Wizard)
@@ -571,14 +629,17 @@ Settings → COMMS, FOIP & HEAD TRACKING
 
 ### LUG-Helper Config Paths
 
-The wizard automatically searches for LUG config at:
+The wizard automatically searches for LUG config in this order:
 ```
 ~/.config/starcitizen-lug/config
 ~/.config/starcitizen-lug/settings
 ~/.config/starcitizen-lug/lug-helper.conf
+~/.config/starcitizen-lug/lug-helper.cfg
+~/.config/starcitizen-lug/preflight_conf
 ```
+If none of these are found, any file in the directory is checked as a fallback.
 
-Detected keys: `WINEPREFIX`, `wine_prefix`, `SC_PREFIX`, `WINE_RUNNER_PATH`, `runner_path`, `ESYNC`, `FSYNC`
+Detected keys (both upper- and lowercase): `WINEPREFIX`, `wine_prefix`, `SC_PREFIX`, `WINE_RUNNER_PATH`, `runner_path`, `ESYNC`, `FSYNC`
 
 ---
 
@@ -729,10 +790,15 @@ invert = true
 
 ### Mock mode for setup tests
 
-Test without a real tracker:
+Test without a real tracker – two options:
+
 ```bash
-osg-daemon --mock --verbose
-osg-config  # GUI shows simulated movements
+# Option 1: Start daemon in mock mode, connect GUI normally
+osg-daemon --mock --verbose &
+osg-config
+
+# Option 2: Start GUI in mock mode directly (no daemon needed)
+osg-config --mock
 ```
 
 ### Override Stream Engine path
@@ -944,4 +1010,4 @@ A: Yes. Any game that supports TrackIR or FreeTrack via Wine/Proton works. OpenT
 
 ---
 
-*This handbook was created for openstargazer v0.1.0*
+*This handbook covers openstargazer v0.1.0 and subsequent bugfix releases (Linux runtime fixes, security hardening, extended install script).*

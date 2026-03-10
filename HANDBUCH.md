@@ -92,12 +92,35 @@ Gerät → [Gaze + HeadPose Callbacks]
 ### Vorbereitung (alle Distros)
 
 ```bash
-# Projektverzeichnis klonen oder entpacken
-cd ~
-git clone https://github.com/yourname/openstargazer.git
-# oder: Archiv entpacken
+git clone https://github.com/1psconstructor/openstargazer.git
 cd openstargazer
 ```
+
+---
+
+### Interaktives Installations-Menü
+
+Das Skript zeigt beim Start immer ein Menü:
+
+```
+==========================================
+   openstargazer Setup
+==========================================
+
+  1) Neuinstallation
+  2) Reparatur (fehlende Komponenten nachinstallieren)
+  3) Deinstallation -- vollständig
+  4) Deinstallation -- benutzerdefiniert
+  5) Beenden
+```
+
+| Option | Beschreibung |
+|--------|-------------|
+| **1 – Neuinstallation** | Vollständige Erstinstallation aller Komponenten |
+| **2 – Reparatur** | Prüft jede Komponente einzeln und installiert nur fehlende nach |
+| **3 – Volldeinstallation** | Entfernt alle Komponenten (mit Bestätigungsabfrage) |
+| **4 – Benutzerdefiniert** | Zeigt alle Komponenten mit Status, Auswahl per Nummer |
+| **5 – Beenden** | Skript beenden ohne Aktion |
 
 ---
 
@@ -263,48 +286,75 @@ python3 -m openstargazer.setup.wizard
 
 ## 5. Deinstallation
 
-### Vollständige Deinstallation
+### Über das Installations-Skript (empfohlen)
 
 ```bash
-# 1. Service stoppen und deaktivieren
-systemctl --user stop openstargazer.service
-systemctl --user disable openstargazer.service
-systemctl --user stop tobii-usbservice.service
-systemctl --user disable tobii-usbservice.service
+cd scripts
+./install.sh
+# → Option 3 (vollständig) oder Option 4 (benutzerdefiniert) wählen
+```
 
-# 2. Service-Dateien entfernen
+**Option 3 – Vollständige Deinstallation** entfernt nach Bestätigung:
+- systemd User-Service (stop + disable + Datei löschen)
+- udev-Regeln
+- Tobii USB-Service und Binaries
+- Python-Paket / venv / Symlinks
+- Desktop-Eintrag und Icon
+- Benutzerdaten (`~/.config/openstargazer`) – **separate Rückfrage, Standard: Nein**
+
+**Option 4 – Benutzerdefinierte Deinstallation** zeigt alle Komponenten mit ihrem aktuellen Installationsstatus und lässt einzelne per Nummer auswählen:
+
+```
+  1) systemd user service (openstargazer.service)  [installed]
+  2) udev rules (70-openstargazer.rules)            [installed]
+  3) Tobii USB service (tobiiusb.service)           [installed]
+  4) Tobii binaries (libtobii_stream_engine.so ...) [installed]
+  5) Python package (openstargazer)                 [installed]
+  6) Desktop entry + icon                           [installed]
+  7) User data (~/.config/openstargazer ...)        [exists]
+
+  Selection: 1,2,5
+```
+
+### Manuelle Deinstallation (Fallback)
+
+Falls das Skript nicht verfügbar ist:
+
+```bash
+# Services stoppen und deaktivieren
+systemctl --user stop openstargazer.service 2>/dev/null || true
+systemctl --user disable openstargazer.service 2>/dev/null || true
+sudo systemctl stop tobiiusb.service 2>/dev/null || true
+sudo systemctl disable tobiiusb.service 2>/dev/null || true
+
+# Service-Dateien entfernen
 rm -f ~/.config/systemd/user/openstargazer.service
-rm -f ~/.config/systemd/user/tobii-usbservice.service
+sudo rm -f /etc/systemd/system/tobiiusb.service
 systemctl --user daemon-reload
+sudo systemctl daemon-reload
 
-# 3. udev-Regeln entfernen
+# udev-Regeln entfernen
 sudo rm -f /etc/udev/rules.d/70-openstargazer.rules
 sudo udevadm control --reload-rules
 
-# 4. Desktop-Eintrag und Icon entfernen
+# Desktop-Eintrag und Icon
 rm -f ~/.local/share/applications/openstargazer.desktop
 rm -f ~/.local/share/icons/hicolor/scalable/apps/openstargazer.svg
 
-# 5. Python-Paket und venv entfernen
+# Python-Paket und venv
 pip uninstall openstargazer 2>/dev/null || true
 rm -rf ~/.local/share/openstargazer/venv
+rm -f ~/.local/bin/osg-daemon ~/.local/bin/osg-config ~/.local/bin/osg-setup
 
-# 6. Symlinks entfernen (falls venv verwendet)
-rm -f ~/.local/bin/osg-daemon
-rm -f ~/.local/bin/osg-config
-rm -f ~/.local/bin/osg-setup
+# Tobii Binaries
+rm -f ~/.local/share/openstargazer/lib/libtobii_stream_engine.so
+sudo rm -f /usr/local/sbin/tobiiusbserviced
+sudo rm -rf /usr/local/lib/tobiiusb
 
-# 7. Stream Engine Binaries entfernen
-rm -rf ~/.local/share/openstargazer/bin
-rm -rf ~/.local/share/openstargazer/lib
-
-# 8. Konfiguration entfernen (OPTIONAL – löscht alle Einstellungen!)
+# Konfiguration (OPTIONAL – löscht alle Einstellungen!)
 rm -rf ~/.config/openstargazer/
 
-# 9. OpenTrack-Profil entfernen (OPTIONAL)
-rm -f ~/.config/opentrack/tobii5-starcitizen.ini
-
-# 10. Benutzer aus plugdev entfernen (Debian/Ubuntu/Arch)
+# Benutzer aus plugdev entfernen (Debian/Ubuntu/Arch)
 sudo gpasswd -d "$USER" plugdev
 ```
 
@@ -411,7 +461,7 @@ UDP-Ausgabe im OpenTrack-Protokoll (48-Byte-Paket, 6× little-endian double).
 | `host` | String | `"127.0.0.1"` | Ziel-IP für UDP-Pakete. Loopback für lokales OpenTrack. |
 | `port` | Int | `4242` | UDP-Port. Muss mit OpenTrack-Einstellung übereinstimmen. |
 
-**Für Remote-OpenTrack** (anderer PC im LAN):
+**Für Remote-OpenTrack** (anderer PC im LAN) muss `config.toml` direkt bearbeitet werden (über `osg-config` sind aus Sicherheitsgründen nur Loopback-Adressen einstellbar):
 ```toml
 host = "192.168.1.100"  # IP des OpenTrack-PCs
 port = 4242
@@ -597,6 +647,13 @@ Interaktiver Einrichtungs-Wizard. Kann jederzeit erneut aufgerufen werden, um:
 
 Der Daemon bietet einen Unix-Socket unter `~/.local/share/openstargazer/daemon.sock`.
 
+**Sicherheitshinweise:**
+- Der Socket und sein Verzeichnis sind auf `0600`/`0700` gesetzt (nur der eigene Benutzer kann verbinden)
+- Nur erlaubte Methoden werden akzeptiert (Whitelist)
+- Anfragen sind auf 64 KiB begrenzt
+- UDP-Zieladressen müssen Loopback sein (`127.0.0.1`, `::1`, `localhost`)
+- UDP-Ports müssen im Bereich 1024–65535 liegen
+
 Verfügbare Befehle (für Entwickler / Skripting):
 
 | Methode | Beschreibung |
@@ -669,14 +726,17 @@ Einstellungen → COMMS, FOIP & HEAD TRACKING
 
 ### LUG-Helper-Konfigurationspfade
 
-Der Wizard sucht automatisch nach der LUG-Konfiguration:
+Der Wizard sucht automatisch nach der LUG-Konfiguration in dieser Reihenfolge:
 ```
 ~/.config/starcitizen-lug/config
 ~/.config/starcitizen-lug/settings
 ~/.config/starcitizen-lug/lug-helper.conf
+~/.config/starcitizen-lug/lug-helper.cfg
+~/.config/starcitizen-lug/preflight_conf
 ```
+Falls keine dieser Dateien gefunden wird, wird jede Datei im Verzeichnis geprüft.
 
-Erkannte Schlüssel: `WINEPREFIX`, `wine_prefix`, `SC_PREFIX`, `WINE_RUNNER_PATH`, `runner_path`, `ESYNC`, `FSYNC`
+Erkannte Schlüssel (Groß- und Kleinschreibung wird beachtet): `WINEPREFIX`, `wine_prefix`, `SC_PREFIX`, `WINE_RUNNER_PATH`, `runner_path`, `ESYNC`, `FSYNC`
 
 ### Runner-Suchpfade
 
@@ -936,11 +996,18 @@ sudo loginctl enable-linger "$USER"
 
 ### Mock-Modus für Setup-Tests
 
-Testen ohne echten Tracker:
+Testen ohne echten Tracker – zwei Wege:
+
 ```bash
-osg-daemon --mock --verbose
-osg-config  # GUI zeigt simulierte Bewegungen
+# Weg 1: Daemon im Mock-Modus starten, GUI normal verbinden
+osg-daemon --mock --verbose &
+osg-config
+
+# Weg 2: GUI direkt im Mock-Modus starten (kein Daemon nötig)
+osg-config --mock
 ```
+
+`osg-config --mock` startet die GUI mit einem integrierten Simulations-Client und benötigt keinen laufenden Daemon. Nützlich für UI-Tests und Kurven-Konfiguration.
 
 ### Konfiguration live neu laden
 
@@ -1287,4 +1354,4 @@ A: Der Daemon erkennt den Verbindungsabbruch und versucht alle 2 Sekunden automa
 
 ---
 
-*Dieses Handbuch wurde für openstargazer v0.1.0 erstellt.*
+*Dieses Handbuch entspricht openstargazer v0.1.0 + Bugfix-Releases (Linux-Runtime-Fixes, Security-Hardening, erweitertes Install-Script).*
