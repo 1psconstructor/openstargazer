@@ -175,7 +175,7 @@ def _manual_lug_config() -> "LUGInstall | None":
         esync=esync,
         fsync=fsync,
         proton_type="unknown",
-        lug_config_dir=LUGDetector.CONFIG_DIR,
+        lug_config_dir=LUGDetector().CONFIG_DIR,
     )
 
 
@@ -218,6 +218,60 @@ def step_ingame_instructions() -> None:
     c) Head tracking will be active within a few seconds
 """)
     input("  Press Enter to continue…")
+
+
+# ---------------------------------------------------------------------------
+# Install systemd user service + udev rules
+# ---------------------------------------------------------------------------
+
+def step_install_service() -> None:
+    _print_header("Install systemd User Service & udev Rules")
+
+    # --- systemd user service ---
+    service_src = Path(__file__).parent.parent.parent / "data" / "openstargazer.service"
+    service_dst_dir = Path.home() / ".config" / "systemd" / "user"
+    service_dst = service_dst_dir / "openstargazer.service"
+
+    if service_src.exists():
+        if _yes_no("  Install systemd user service?"):
+            service_dst_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(service_src), str(service_dst))
+            print(f"  Installed: {service_dst}")
+
+            subprocess.run(["systemctl", "--user", "daemon-reload"], check=False)
+            print("  systemctl --user daemon-reload done")
+
+            if _yes_no("  Enable service to start on login?"):
+                subprocess.run(
+                    ["systemctl", "--user", "enable", "openstargazer.service"],
+                    check=False,
+                )
+                print("  Service enabled")
+        else:
+            print("  Skipped systemd service installation")
+    else:
+        print(f"  Service file not found: {service_src}")
+
+    # --- udev rules ---
+    udev_src = Path(__file__).parent.parent.parent / "udev" / "70-openstargazer.rules"
+    udev_dst = Path("/etc/udev/rules.d/70-openstargazer.rules")
+
+    if udev_src.exists():
+        if _yes_no("  Install udev rules (requires sudo)?"):
+            result = subprocess.run(
+                ["sudo", "cp", str(udev_src), str(udev_dst)],
+                check=False,
+            )
+            if result.returncode == 0:
+                subprocess.run(["sudo", "udevadm", "control", "--reload-rules"], check=False)
+                subprocess.run(["sudo", "udevadm", "trigger"], check=False)
+                print(f"  Installed: {udev_dst}")
+            else:
+                print("  Failed to install udev rules (sudo required)")
+        else:
+            print("  Skipped udev rules installation")
+    else:
+        print(f"  udev rules not found: {udev_src}")
 
 
 # ---------------------------------------------------------------------------
@@ -282,6 +336,9 @@ def main() -> None:
 
     # Step 6
     step_calibration()
+
+    # Install systemd user service and udev rules
+    step_install_service()
 
     # Summary
     _print_header("Setup Complete")

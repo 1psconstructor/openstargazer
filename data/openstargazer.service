@@ -5,7 +5,10 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/osg-daemon
+# osg-setup install-service should set the correct path for ExecStart.
+# The Environment line ensures ~/.local/bin is on PATH for pip-installed scripts.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/bin/sh -c 'PATH="$HOME/.local/bin:$PATH" exec osg-daemon'
 Restart=on-failure
 RestartSec=3
 

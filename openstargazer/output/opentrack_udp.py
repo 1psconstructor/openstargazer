@@ -68,9 +68,11 @@ class OpenTrackUDPOutput(OutputPlugin):
             frame.pitch,
             frame.roll,
         )
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
-            await loop.sock_sendto(self._sock, packet, (self._host, self._port))
+            await loop.run_in_executor(
+                None, self._sock.sendto, packet, (self._host, self._port)
+            )
         except OSError as exc:
             log.debug("UDP send failed: %s", exc)
 

@@ -236,7 +236,7 @@ class CalibrationWindow:
             GLib.idle_add(self._set_point, i)
             self._shrink_start = time.monotonic()
             time.sleep(2.0)  # Collect for 2 seconds per point
-            residuals.append(0.01 + 0.02 * i % 3)  # placeholder
+            residuals.append(0.01 + 0.02 * (i % 3))  # placeholder
 
         self._results = residuals
         self._quality_colors = [_residual_to_color(r) for r in residuals]

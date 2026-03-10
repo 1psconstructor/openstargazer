@@ -357,6 +357,9 @@ class MainWindow:
     # Helpers
 
     def _make_ipc_client(self):
+        app_client = getattr(self._app, "ipc_client", None)
+        if app_client is not None:
+            return app_client
         from openstargazer.ipc.client import IPCClient
         return IPCClient()
 

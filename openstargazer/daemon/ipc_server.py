@@ -180,7 +180,11 @@ class IPCServer:
                     s.output.opentrack_udp.port = int(udp["port"])
 
         s.save()
-        self._pipeline.update_settings(s)
+        if "output" in params:
+            await self._pipeline.rebuild_outputs(s)
+        else:
+            self._pipeline.update_settings(s)
+
         return {"saved": True}
 
     async def _rpc_start_calibration(self, params: dict) -> dict:

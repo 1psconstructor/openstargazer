@@ -167,12 +167,11 @@ class TrackerManager:
 
     def _tracking_loop(self) -> None:
         """Blocking loop running in a dedicated thread."""
-        from openstargazer.engine.loader import TOBII_ERROR_NO_ERROR  # avoid circular
+        from openstargazer.engine.api import TOBII_ERROR_NO_ERROR
+
         assert self._lib is not None
         assert self._dev is not None
         assert self._bridge is not None
-
-        TOBII_ERROR_NO_ERROR = 0
         fps_counter = 0
         fps_ts = time.monotonic()
 
@@ -264,7 +263,7 @@ class TrackerManager:
     async def _ensure_usbservice(self) -> None:
         """Start tobiiusbservice if not already running."""
         if not USBSERVICE_BINARY.exists():
-            log.debug("tobiiusbservice not found at %s – assuming already running", USBSERVICE_BINARY)
+            log.warning("tobiiusbservice not found at %s – assuming already running", USBSERVICE_BINARY)
             return
         try:
             result = subprocess.run(

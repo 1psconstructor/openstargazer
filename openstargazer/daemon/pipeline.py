@@ -74,6 +74,44 @@ class DataPipeline:
         self._settings = settings
         self._reload_config()
 
+    async def rebuild_outputs(self, settings: "Settings") -> None:
+        """Stop current output plugins, rebuild from settings, and restart."""
+        self._settings = settings
+        self._reload_config()
+
+        # Stop existing outputs
+        for plugin in self._outputs:
+            try:
+                await plugin.stop()
+            except Exception:
+                log.exception("Error stopping output plugin %s", plugin.name)
+
+        self._outputs.clear()
+
+        # Rebuild from current settings
+        from openstargazer.output.opentrack_udp import OpenTrackUDPOutput
+        from openstargazer.output.freetrack_shm import FreeTrackSHMOutput
+
+        if settings.output.opentrack_udp.enabled:
+            udp = OpenTrackUDPOutput(
+                host=settings.output.opentrack_udp.host,
+                port=settings.output.opentrack_udp.port,
+            )
+            self._outputs.append(udp)
+
+        if settings.output.freetrack_shm.enabled:
+            shm = FreeTrackSHMOutput()
+            self._outputs.append(shm)
+
+        # Start new outputs if pipeline is running
+        if self._running:
+            for plugin in self._outputs:
+                try:
+                    await plugin.start()
+                except Exception:
+                    log.exception("Error starting output plugin %s", plugin.name)
+            log.info("Output plugins rebuilt: %d active", len(self._outputs))
+
     # ------------------------------------------------------------------
     # Output management
 

@@ -12,6 +12,57 @@ import sys
 log = logging.getLogger(__name__)
 
 
+class MockIPCClient:
+    """Fake IPC client for GUI development without a running daemon."""
+
+    def get_status(self) -> dict:
+        return {
+            "connected": True,
+            "fps": 90.0,
+            "gaze_xy": [0.5, 0.5],
+            "gaze_valid": True,
+            "head_pose": {
+                "x": 0.0, "y": 0.0, "z": 600.0,
+                "yaw": 0.0, "pitch": 0.0, "roll": 0.0,
+                "valid": True,
+            },
+            "pipeline_fps": 90.0,
+        }
+
+    def get_config(self) -> dict:
+        return {
+            "filter": {
+                "one_euro_min_cutoff": 1.0,
+                "one_euro_beta": 0.007,
+                "gaze_deadzone_px": 5.0,
+            },
+            "output": {
+                "opentrack_udp": {"enabled": True, "host": "127.0.0.1", "port": 4242},
+                "freetrack_shm": {"enabled": False},
+            },
+            "tracking": {"mode": "head"},
+        }
+
+    def set_config(self, cfg: dict) -> dict:
+        log.info("MockIPCClient: set_config(%s)", cfg)
+        return {"saved": True}
+
+    def start_calibration(self, mode: int = 5) -> dict:
+        return {"started": True, "mode": mode}
+
+    def list_profiles(self) -> list[str]:
+        return ["default", "star-citizen", "dcs"]
+
+    def activate_profile(self, name: str) -> dict:
+        return {"activated": name}
+
+    def ping(self) -> bool:
+        return True
+
+    def is_daemon_running(self) -> bool:
+        return True
+
+
 def _check_gtk() -> bool:
     try:
         import gi
@@ -48,6 +99,12 @@ def main() -> None:
 
     from gui.main_window import MainWindow
 
+    # Select IPC client based on --mock flag
+    ipc_client = None
+    if args.mock:
+        ipc_client = MockIPCClient()
+        log.info("Running in mock mode (no daemon connection)")
+
     class Tobii5App(Adw.Application):
         def __init__(self) -> None:
             super().__init__(
@@ -55,6 +112,7 @@ def main() -> None:
                 flags=Gio.ApplicationFlags.FLAGS_NONE,
             )
             self._window: MainWindow | None = None
+            self.ipc_client = ipc_client
 
         def do_activate(self) -> None:
             if self._window is None:

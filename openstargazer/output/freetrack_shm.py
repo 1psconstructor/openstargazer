@@ -58,6 +58,7 @@ class FreeTrackSHMOutput(OutputPlugin):
     def __init__(self) -> None:
         self._fd: int | None = None
         self._mm: mmap.mmap | None = None
+        self._posix_shm = None  # keeps posix_ipc.SharedMemory alive to prevent GC closing the fd
         self._frame_id: int = 0
         self._running = False
 
@@ -69,11 +70,12 @@ class FreeTrackSHMOutput(OutputPlugin):
         try:
             import posix_ipc  # type: ignore[import]
             shm = posix_ipc.SharedMemory(SHM_NAME, posix_ipc.O_CREAT, size=SHM_SIZE)
+            self._posix_shm = shm  # keep reference alive until stop()
             self._fd = shm.fd
         except ImportError:
             # Fallback: use os.open directly on Linux
             import fcntl
-            self._fd = os.open(f"/dev/shm{SHM_NAME.replace('/', '_')}", os.O_CREAT | os.O_RDWR, 0o666)
+            self._fd = os.open(f"/dev/shm/{SHM_NAME.lstrip('/')}", os.O_CREAT | os.O_RDWR, 0o666)
             os.ftruncate(self._fd, SHM_SIZE)
         except Exception as exc:
             log.error("Could not create FreeTrack shared memory: %s", exc)
@@ -91,6 +93,7 @@ class FreeTrackSHMOutput(OutputPlugin):
         if self._fd is not None:
             os.close(self._fd)
             self._fd = None
+        self._posix_shm = None
         log.info("FreeTrack SHM output stopped")
 
     async def send(self, frame: TrackingFrame) -> None:

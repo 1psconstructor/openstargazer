@@ -17,16 +17,20 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-# XDG config directory
-_XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
-_LUG_CONFIG_DIR = _XDG_CONFIG / "starcitizen-lug"
+def _get_xdg_config() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
 
-# Common runner base paths
-_RUNNER_SEARCH_PATHS = [
-    Path.home() / "Games" / "star-citizen" / "runners",
-    Path.home() / ".local" / "share" / "lutris" / "runners" / "wine",
-    Path(os.environ.get("XDG_DATA_HOME", "~/.local/share")).expanduser() / "Steam" / "compatibilitytools.d",
-]
+
+def _get_lug_config_dir() -> Path:
+    return _get_xdg_config() / "starcitizen-lug"
+
+
+def _get_runner_search_paths() -> list[Path]:
+    return [
+        Path.home() / "Games" / "star-citizen" / "runners",
+        Path.home() / ".local" / "share" / "lutris" / "runners" / "wine",
+        Path(os.environ.get("XDG_DATA_HOME", "~/.local/share")).expanduser() / "Steam" / "compatibilitytools.d",
+    ]
 
 
 @dataclass
@@ -54,7 +58,9 @@ class LUGInstall:
 class LUGDetector:
     """Detects and parses a LUG-Helper Star Citizen installation."""
 
-    CONFIG_DIR = _LUG_CONFIG_DIR
+    @property
+    def CONFIG_DIR(self) -> Path:
+        return _get_lug_config_dir()
 
     def detect(self) -> LUGInstall | None:
         """
@@ -99,7 +105,7 @@ class LUGDetector:
                     return p
 
         # 2. Search known directories
-        for base in _RUNNER_SEARCH_PATHS:
+        for base in _get_runner_search_paths():
             if not base.exists():
                 continue
             candidates = sorted(base.iterdir(), reverse=True)  # newest first
@@ -124,6 +130,8 @@ class LUGDetector:
             self.CONFIG_DIR / "config",
             self.CONFIG_DIR / "settings",
             self.CONFIG_DIR / "lug-helper.conf",
+            self.CONFIG_DIR / "lug-helper.cfg",
+            self.CONFIG_DIR / "preflight_conf",
         ]
         for p in candidates:
             if p.exists():
@@ -145,7 +153,7 @@ class LUGDetector:
                 line = line.strip()
                 if not line or line.startswith("#"):
                     continue
-                m = re.match(r'^([A-Z_]+)\s*=\s*["\']?([^"\']*)["\']?$', line)
+                m = re.match(r'^([A-Za-z0-9_]+)\s*=\s*["\']?([^"\']*)["\']?$', line)
                 if m:
                     result[m.group(1)] = m.group(2).strip()
         except OSError as exc:

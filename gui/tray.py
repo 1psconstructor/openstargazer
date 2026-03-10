@@ -100,12 +100,13 @@ class TrayIcon:
             draw.ellipse([24, 24, 40, 40], fill=(255, 255, 255, 255))
 
             menu = pystray.Menu(
-                pystray.MenuItem("Enable Tracking",  self._on_enable_toggled, checked=lambda i: True),
+                pystray.MenuItem("Enable Tracking",  lambda icon, item: self._on_enable_toggled(item),
+                                 checked=lambda item: getattr(self, "_tracking_enabled", True)),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Calibrate…",       lambda: self._on_calibrate(None)),
-                pystray.MenuItem("Open Config",      lambda: self._on_open_config(None)),
+                pystray.MenuItem("Calibrate…",       lambda icon, item: self._on_calibrate(None)),
+                pystray.MenuItem("Open Config",      lambda icon, item: self._on_open_config(None)),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Quit",             lambda: self._on_quit(None)),
+                pystray.MenuItem("Quit",             lambda icon, item: self._on_quit(None)),
             )
 
             icon = pystray.Icon("openstargazer", img, "openstargazer", menu)
@@ -125,9 +126,26 @@ class TrayIcon:
         try:
             from openstargazer.ipc.client import IPCClient
             client = IPCClient()
-            # Toggle output – simplest approximation
+
+            # Determine current state from the menu item
+            if hasattr(item, "get_active"):
+                enabled = item.get_active()
+            else:
+                enabled = not getattr(self, "_tracking_enabled", True)
+
+            self._tracking_enabled = enabled
+
+            # Toggle output plugins via set_config
+            cfg = client.get_config()
+            output = cfg.get("output", {})
+            for key in output:
+                if isinstance(output[key], dict) and "enabled" in output[key]:
+                    output[key]["enabled"] = enabled
+
+            client.set_config({"output": output})
+            log.info("Tracking %s via tray toggle", "enabled" if enabled else "disabled")
         except Exception as exc:
-            log.debug("Tray toggle failed: %s", exc)
+            log.warning("Tray toggle failed: %s", exc)
 
     def _on_calibrate(self, _item) -> None:
         from gi.repository import GLib
