@@ -88,7 +88,7 @@ install_usb_service() {
     local service_dir="/etc/systemd/system"
     local tmpdir
     tmpdir="$(mktemp -d)"
-    trap "rm -rf '$tmpdir'" RETURN
+    trap 'rm -rf -- "$tmpdir"' RETURN
 
     info "Installing tobiiusbserviced (system-wide, requires sudo)…"
 
@@ -112,21 +112,33 @@ install_usb_service() {
         "${tmpdir}/tobiiusb.service" \
         "tobiiusb.service"
 
-    # Install (needs sudo)
-    sudo mkdir -p "$lib_dir"
-    sudo install -m 755 "${tmpdir}/tobiiusbserviced" "${sbin_dir}/tobiiusbserviced"
+    # Determine privilege escalation method
+    local priv=""
+    if [[ $EUID -eq 0 ]]; then
+        priv=""
+    elif command -v sudo &>/dev/null; then
+        priv="sudo"
+    else
+        error "Root privileges required but sudo is not available."
+        error "Re-run this script as root."
+        return 1
+    fi
+
+    # Install (needs root)
+    $priv mkdir -p "$lib_dir"
+    $priv install -m 755 "${tmpdir}/tobiiusbserviced" "${sbin_dir}/tobiiusbserviced"
     info "Installed: ${sbin_dir}/tobiiusbserviced"
 
     for lib in libtobii_libc.so libtobii_osal.so libtobii_usb.so; do
-        sudo install -m 644 "${tmpdir}/${lib}" "${lib_dir}/${lib}"
+        $priv install -m 644 "${tmpdir}/${lib}" "${lib_dir}/${lib}"
         info "Installed: ${lib_dir}/${lib}"
     done
 
-    sudo install -m 644 "${tmpdir}/tobiiusb.service" "${service_dir}/tobiiusb.service"
+    $priv install -m 644 "${tmpdir}/tobiiusb.service" "${service_dir}/tobiiusb.service"
     info "Installed: ${service_dir}/tobiiusb.service"
 
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now tobiiusb.service
+    $priv systemctl daemon-reload
+    $priv systemctl enable --now tobiiusb.service
     info "tobiiusb.service enabled and started ✓"
 }
 

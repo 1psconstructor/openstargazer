@@ -75,7 +75,7 @@ class FreeTrackSHMOutput(OutputPlugin):
         except ImportError:
             # Fallback: use os.open directly on Linux
             import fcntl
-            self._fd = os.open(f"/dev/shm/{SHM_NAME.lstrip('/')}", os.O_CREAT | os.O_RDWR, 0o666)
+            self._fd = os.open(f"/dev/shm/{SHM_NAME.lstrip('/')}", os.O_CREAT | os.O_RDWR, 0o600)
             os.ftruncate(self._fd, SHM_SIZE)
         except Exception as exc:
             log.error("Could not create FreeTrack shared memory: %s", exc)

@@ -47,8 +47,15 @@ class IPCServer:
         self._settings = settings
         self._server: asyncio.AbstractServer | None = None
 
+    # Whitelist of allowed RPC methods to prevent unintended method access
+    _ALLOWED_METHODS = frozenset({
+        "get_status", "get_config", "set_config",
+        "start_calibration", "list_profiles", "activate_profile", "ping",
+    })
+
     async def start(self) -> None:
         _SOCKET_DIR.mkdir(parents=True, exist_ok=True)
+        _SOCKET_DIR.chmod(0o700)  # directory only accessible by owner
 
         # Remove stale socket
         if SOCKET_PATH.exists():
@@ -57,6 +64,10 @@ class IPCServer:
         self._server = await asyncio.start_unix_server(
             self._handle_client, path=str(SOCKET_PATH)
         )
+
+        # Restrict socket permissions to owner only (rw-------)
+        SOCKET_PATH.chmod(0o600)
+
         log.info("IPC server listening on %s", SOCKET_PATH)
 
     async def stop(self) -> None:
@@ -70,6 +81,8 @@ class IPCServer:
     # ------------------------------------------------------------------
     # Connection handler
 
+    _MAX_LINE_LENGTH = 64 * 1024  # 64 KiB max per IPC request line
+
     async def _handle_client(
         self,
         reader: asyncio.StreamReader,
@@ -79,9 +92,18 @@ class IPCServer:
         log.debug("IPC client connected: %s", addr)
         try:
             while True:
-                line = await reader.readline()
+                try:
+                    line = await reader.readuntil(b"\n")
+                except asyncio.LimitOverrunError:
+                    log.warning("IPC client sent oversized request, disconnecting")
+                    break
+                except asyncio.IncompleteReadError:
+                    break
                 if not line:
                     break
+                if len(line) > self._MAX_LINE_LENGTH:
+                    log.warning("IPC request too large (%d bytes), ignoring", len(line))
+                    continue
                 try:
                     req = json.loads(line)
                 except json.JSONDecodeError as exc:
@@ -104,6 +126,9 @@ class IPCServer:
         method = req.get("method", "")
         params = req.get("params", {})
         req_id = req.get("id")
+
+        if method not in self._ALLOWED_METHODS:
+            return {"id": req_id, "error": f"Unknown method: {method!r}"}
 
         handler = getattr(self, f"_rpc_{method}", None)
         if handler is None:
@@ -176,8 +201,17 @@ class IPCServer:
                 udp = o["opentrack_udp"]
                 if "enabled" in udp:
                     s.output.opentrack_udp.enabled = bool(udp["enabled"])
+                if "host" in udp:
+                    host = str(udp["host"]).strip()
+                    # Only allow loopback addresses for security
+                    if host not in ("127.0.0.1", "::1", "localhost"):
+                        raise ValueError(f"UDP host must be a loopback address, got {host!r}")
+                    s.output.opentrack_udp.host = host
                 if "port" in udp:
-                    s.output.opentrack_udp.port = int(udp["port"])
+                    port = int(udp["port"])
+                    if not (1024 <= port <= 65535):
+                        raise ValueError(f"UDP port must be 1024-65535, got {port}")
+                    s.output.opentrack_udp.port = port
 
         s.save()
         if "output" in params:
