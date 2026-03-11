@@ -25,6 +25,7 @@
 13. [Best Practices](#13-best-practices)
 14. [Tips & Tricks](#14-tips--tricks)
 15. [Troubleshooting](#15-troubleshooting)
+    - [Creating a Debug Report](#creating-a-debug-report)
 16. [FAQ](#16-faq)
 17. [Links](#17-links)
 
@@ -75,7 +76,7 @@ Device → [Gaze + HeadPose Callbacks]
 | Linux Kernel | 5.15 or newer |
 | Python | 3.10 or newer |
 | systemd | (for user service) |
-| OpenTrack | 2.3 or newer (for Star Citizen) |
+| OpenTrack | 2026.1.0 or newer (recommended, for Star Citizen) |
 
 ### Supported Distributions
 | Distribution | Package Manager | Tested |
@@ -122,6 +123,10 @@ The script always presents a menu on startup:
 | **4 – Custom uninstall** | Shows all components with status, select by number |
 | **5 – Exit** | Quit without action |
 
+> **Install log:** Every run of `install.sh` appends to
+> `~/.local/share/openstargazer/install.log` with timestamps and `[INFO|WARN|ERROR]`
+> levels. Useful for reviewing past installation attempts or including in bug reports.
+
 ---
 
 ### 3.1 Fedora
@@ -141,9 +146,12 @@ chmod +x install.sh
    python3-gobject  gtk4  libadwaita  libusb  usbutils  curl  tar
    ```
 
-3. **OpenTrack** — Not in Fedora's official repos. The installer:
-   - Tries installation (works if RPM Fusion Free is already enabled)
-   - Shows instructions for RPM Fusion or Flatpak on failure
+3. **OpenTrack** — Not in Fedora's official repos or RPM Fusion Free (Fedora 43+).
+   The installer offers four options:
+   1. Enable RPM Fusion Free and install via dnf (may not be available for all versions)
+   2. Install via Flatpak from Flathub
+   3. Build from GitHub source (recommended for Fedora 43, includes Wine/LUG support)
+   4. Skip (install manually later)
 
 4. **Python package** — Fedora has PEP 668 enabled, so:
    - First attempt: normal `pip install --user`
@@ -164,6 +172,14 @@ sudo dnf install -y opentrack
 
 # Option B: Flatpak (Flathub)
 flatpak install -y flathub io.github.opentrack.OpenTrack
+
+# Option C: Build from GitHub source (Fedora 43+, includes Wine output plugin)
+sudo dnf install cmake git qt6-qtbase-private-devel qt6-qttools-devel \
+  opencv-devel procps-ng-devel libevdev-devel wine-devel wine-devel.i686
+git clone --depth=1 https://github.com/opentrack/opentrack
+cd opentrack && mkdir build && cd build
+cmake .. -DSDK_WINE=ON -DCMAKE_INSTALL_PREFIX=/usr/local
+make -j$(nproc) && sudo make install
 ```
 
 ---
@@ -641,6 +657,10 @@ If none of these are found, any file in the directory is checked as a fallback.
 
 Detected keys (both upper- and lowercase): `WINEPREFIX`, `wine_prefix`, `SC_PREFIX`, `WINE_RUNNER_PATH`, `runner_path`, `ESYNC`, `FSYNC`
 
+> **Note for GE-Proton users:** Add `export PROTON_VERB="runinprefix"` to your
+> launch environment (e.g. `sc-launch.sh`). This is required for OpenTrack's
+> Wine output plugin to work correctly with GE-Proton runners.
+
 ---
 
 ## 10. Operating Modes & Use Cases
@@ -926,6 +946,42 @@ Also: set OpenTrack filter to **none**.
 
 ---
 
+### Creating a Debug Report
+
+If you encounter a problem that is difficult to diagnose, use the debug-report script
+to collect all relevant system information in one file:
+
+```bash
+cd scripts
+bash collect-debug-info.sh
+```
+
+Or from the install.sh menu: choose **option 6 – Debug-Report erstellen**.
+
+The script creates a file at:
+```
+~/openstargazer-debug-YYYYMMDD-HHMMSS.txt
+```
+
+**What the report contains:**
+- System: OS/distro, kernel version, architecture, RAM, CPU
+- Python: version, pip/venv status, `pip show openstargazer`
+- USB devices: Tobii device detection via `lsusb`
+- Service status: `openstargazer` user service and last 50 journal lines
+- Tobii USB service: `tobiiusb` system service status
+- Install paths: existence check for all key files (stream engine, udev rules, venv, desktop entry)
+- opentrack: version and config directory contents (filenames only)
+- Config file: `~/.config/openstargazer/config.toml` with home paths redacted
+- Install log: last 100 lines of `~/.local/share/openstargazer/install.log`
+- udev rules: content of `/etc/udev/rules.d/70-openstargazer.rules`
+
+Attach the resulting file to a [new GitHub issue](https://github.com/1psconstructor/openstargazer/issues/new).
+
+> **Privacy note:** The script replaces your actual username in file paths with `<user>`
+> before writing the config file content. No passwords or tokens are collected.
+
+---
+
 ## 16. FAQ
 
 **Q: Does OpenTrack need to be installed for osg-daemon to run?**
@@ -1010,4 +1066,4 @@ A: Yes. Any game that supports TrackIR or FreeTrack via Wine/Proton works. OpenT
 
 ---
 
-*This handbook covers openstargazer v0.1.0 and subsequent bugfix releases (Linux runtime fixes, security hardening, extended install script).*
+*This handbook covers openstargazer v0.2.0.*

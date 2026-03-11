@@ -25,6 +25,7 @@
 13. [Best Practices](#13-best-practices)
 14. [Tipps & Tricks](#14-tipps--tricks)
 15. [Fehlerbehebung](#15-fehlerbehebung)
+    - [Debug-Report erstellen](#debug-report-erstellen)
 16. [FAQ](#16-faq)
 17. [Linksammlung](#17-linksammlung)
 
@@ -75,7 +76,7 @@ Gerät → [Gaze + HeadPose Callbacks]
 | Linux-Kernel | 5.15 oder neuer |
 | Python | 3.10 oder neuer |
 | systemd | (für User-Service) |
-| OpenTrack | 2.3 oder neuer (für Star Citizen) |
+| OpenTrack | 2026.1.0 oder neuer (empfohlen, für Star Citizen) |
 
 ### Unterstützte Distributionen
 | Distribution | Paketmanager | Getestet |
@@ -122,6 +123,10 @@ Das Skript zeigt beim Start immer ein Menü:
 | **4 – Benutzerdefiniert** | Zeigt alle Komponenten mit Status, Auswahl per Nummer |
 | **5 – Beenden** | Skript beenden ohne Aktion |
 
+> **Installations-Log:** Jeder `install.sh`-Aufruf schreibt einen Eintrag in
+> `~/.local/share/openstargazer/install.log` mit Zeitstempel und `[INFO|WARN|ERROR]`-Level.
+> Hilfreich zur Nachverfolgung früherer Installationsversuche und für Bug-Reports.
+
 ---
 
 ### 3.1 Fedora
@@ -141,9 +146,12 @@ chmod +x install.sh
    python3-gobject  gtk4  libadwaita  libusb  usbutils  curl  tar
    ```
 
-3. **OpenTrack** — Nicht in Fedoras offiziellen Repos. Das Installer-Skript:
-   - Versucht Installation (klappt wenn RPM Fusion Free bereits aktiviert ist)
-   - Zeigt bei Fehler Anleitung für RPM Fusion oder Flatpak
+3. **OpenTrack** — Nicht in Fedoras offiziellen Repos oder RPM Fusion Free (Fedora 43+).
+   Das Skript bietet vier Installationsoptionen:
+   1. RPM Fusion Free aktivieren und per dnf installieren (evtl. nicht für alle Versionen verfügbar)
+   2. Via Flatpak von Flathub installieren
+   3. Aus GitHub-Quellcode bauen (empfohlen für Fedora 43, inkl. Wine-/LUG-Unterstützung)
+   4. Überspringen (manuell nachinstallieren)
 
 4. **Python-Paket** — Fedora hat PEP 668 aktiviert, daher:
    - Erster Versuch: normales `pip install --user`
@@ -164,6 +172,14 @@ sudo dnf install -y opentrack
 
 # Option B: Flatpak (Flathub)
 flatpak install -y flathub io.github.opentrack.OpenTrack
+
+# Option C: Aus GitHub-Quellcode bauen (Fedora 43+, enthält Wine-Output-Plugin)
+sudo dnf install cmake git qt6-qtbase-private-devel qt6-qttools-devel \
+  opencv-devel procps-ng-devel libevdev-devel wine-devel wine-devel.i686
+git clone --depth=1 https://github.com/opentrack/opentrack
+cd opentrack && mkdir build && cd build
+cmake .. -DSDK_WINE=ON -DCMAKE_INSTALL_PREFIX=/usr/local
+make -j$(nproc) && sudo make install
 ```
 
 ---
@@ -738,6 +754,10 @@ Falls keine dieser Dateien gefunden wird, wird jede Datei im Verzeichnis geprüf
 
 Erkannte Schlüssel (Groß- und Kleinschreibung wird beachtet): `WINEPREFIX`, `wine_prefix`, `SC_PREFIX`, `WINE_RUNNER_PATH`, `runner_path`, `ESYNC`, `FSYNC`
 
+> **Hinweis für GE-Proton-Nutzer:** `export PROTON_VERB="runinprefix"` zur
+> Startumgebung hinzufügen (z. B. in `sc-launch.sh`). Erforderlich damit das
+> Wine-Output-Plugin von OpenTrack mit GE-Proton-Runnern korrekt funktioniert.
+
 ### Runner-Suchpfade
 
 ```
@@ -1247,6 +1267,42 @@ ls ~/.config/openstargazer/config.toml
 
 ---
 
+### Debug-Report erstellen
+
+Wenn ein Problem schwer zu diagnostizieren ist, sammelt das Debug-Report-Skript alle
+relevanten Systeminformationen in einer einzigen Datei:
+
+```bash
+cd scripts
+bash collect-debug-info.sh
+```
+
+Oder aus dem install.sh-Menü: **Option 6 – Debug-Report erstellen** wählen.
+
+Das Skript erstellt eine Datei unter:
+```
+~/openstargazer-debug-JJJJMMTT-HHMMSS.txt
+```
+
+**Inhalt des Reports:**
+- System: OS/Distro, Kernel-Version, Architektur, RAM, CPU
+- Python: Version, pip/venv-Status, `pip show openstargazer`
+- USB-Geräte: Tobii-Geräteerkennung per `lsusb`
+- Service-Status: `openstargazer` User-Service und letzte 50 Journal-Zeilen
+- Tobii USB-Service: `tobiiusb` System-Service-Status
+- Installationspfade: Vorhandensein aller Schlüsseldateien (Stream Engine, udev-Regeln, venv, Desktop-Eintrag)
+- opentrack: Version und Inhalt des Config-Verzeichnisses (nur Dateinamen)
+- Konfigurationsdatei: `~/.config/openstargazer/config.toml` mit gekürzten Home-Pfaden
+- Installations-Log: Letzte 100 Zeilen aus `~/.local/share/openstargazer/install.log`
+- udev-Regeln: Inhalt von `/etc/udev/rules.d/70-openstargazer.rules`
+
+Die erzeugte Datei als Anhang an ein [neues GitHub-Issue](https://github.com/1psconstructor/openstargazer/issues/new) anhängen.
+
+> **Datenschutz-Hinweis:** Das Skript ersetzt deinen tatsächlichen Benutzernamen in
+> Dateipfaden durch `<user>`. Passwörter oder Tokens werden nicht erfasst.
+
+---
+
 ## 16. FAQ
 
 **F: Muss OpenTrack installiert sein damit osg-daemon läuft?**
@@ -1354,4 +1410,4 @@ A: Der Daemon erkennt den Verbindungsabbruch und versucht alle 2 Sekunden automa
 
 ---
 
-*Dieses Handbuch entspricht openstargazer v0.1.0 + Bugfix-Releases (Linux-Runtime-Fixes, Security-Hardening, erweitertes Install-Script).*
+*Dieses Handbuch entspricht openstargazer v0.2.0.*

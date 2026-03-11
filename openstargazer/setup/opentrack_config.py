@@ -35,7 +35,7 @@ def _find_opentrack_config_dir() -> Path:
         log.info("Using Flatpak OpenTrack config dir: %s", _OPENTRACK_CONFIG_DIR_FLATPAK)
         return _OPENTRACK_CONFIG_DIR_FLATPAK
     # Neither exists yet – check if Flatpak OpenTrack is installed
-    import shutil, subprocess
+    import subprocess
     if shutil.which("flatpak"):
         try:
             result = subprocess.run(
@@ -46,7 +46,7 @@ def _find_opentrack_config_dir() -> Path:
                 log.info("Flatpak OpenTrack detected – using Flatpak config dir")
                 return _OPENTRACK_CONFIG_DIR_FLATPAK
         except Exception:
-            pass
+            log.debug("flatpak detection failed", exc_info=True)
     return _OPENTRACK_CONFIG_DIR_NATIVE
 
 
@@ -156,6 +156,14 @@ z\\clamp=1
 
         profile_path.write_text(content, encoding="utf-8")
         log.info("OpenTrack profile written to %s", profile_path)
+
+        runner_str = str(lug.runner_path).lower() if lug.runner_path else ""
+        if "ge-proton" in runner_str or "proton-ge" in runner_str:
+            log.warning(
+                "GE-Proton runner detected. Add 'export PROTON_VERB=\"runinprefix\"' "
+                "to your launch environment (e.g. sc-launch.sh) for OpenTrack's "
+                "Wine output plugin to work correctly."
+            )
 
         # Write the "last used profile" pointer so OpenTrack auto-loads it
         last_profile_file = config_dir / "opentrack.ini"

@@ -86,9 +86,9 @@ install_usb_service() {
     local sbin_dir="/usr/local/sbin"
     local lib_dir="/usr/local/lib/tobiiusb"
     local service_dir="/etc/systemd/system"
-    local tmpdir
+    local tmpdir=""
     tmpdir="$(mktemp -d)"
-    trap 'rm -rf -- "$tmpdir"' RETURN
+    trap '[[ -n "${tmpdir:-}" ]] && rm -rf -- "$tmpdir"' RETURN
 
     info "Installing tobiiusbserviced (system-wide, requires sudo)…"
 

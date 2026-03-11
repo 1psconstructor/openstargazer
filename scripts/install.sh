@@ -9,6 +9,7 @@
 #   3) Full uninstall
 #   4) Custom uninstall (choose components)
 #   5) Exit
+#   6) Create debug report
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,9 +22,47 @@ BOLD='\033[1m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-info()  { echo -e "${GREEN}[openstargazer]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[openstargazer]${NC} $*"; }
-error() { echo -e "${RED}[openstargazer]${NC} $*" >&2; }
+# ===========================================================================
+# Logging
+# ===========================================================================
+
+LOG_DIR="${HOME}/.local/share/openstargazer"
+LOG_FILE="${LOG_DIR}/install.log"
+
+_log_init() {
+    mkdir -p "${LOG_DIR}"
+}
+
+_log_write() {
+    local level="$1"
+    shift
+    local ts
+    ts="$(date '+%Y-%m-%d %H:%M:%S')"
+    printf '[%s] [%s] %s\n' "${ts}" "${level}" "$*" >> "${LOG_FILE}"
+}
+
+_log_run_header() {
+    local action="${1:-unknown}"
+    mkdir -p "${LOG_DIR}"
+    {
+        printf '\n'
+        printf '================================================================================\n'
+        printf 'openstargazer install.sh run\n'
+        printf '  Date/Time   : %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+        printf '  Distro      : %s\n' \
+            "$(. /etc/os-release 2>/dev/null && printf '%s %s' "${NAME:-unknown}" "${VERSION_ID:-}" || printf 'unknown')"
+        printf '  Kernel      : %s\n' "$(uname -r)"
+        printf '  Arch        : %s\n' "$(uname -m)"
+        printf '  Bash        : %s\n' "${BASH_VERSION}"
+        printf '  User        : %s\n' "${USER:-$(id -un)}"
+        printf '  Action      : %s\n' "${action}"
+        printf '================================================================================\n'
+    } >> "${LOG_FILE}"
+}
+
+info()  { echo -e "${GREEN}[openstargazer]${NC} $*"; _log_write "INFO" "$*"; }
+warn()  { echo -e "${YELLOW}[openstargazer]${NC} $*"; _log_write "WARN" "$*"; }
+error() { echo -e "${RED}[openstargazer]${NC} $*" >&2; _log_write "ERROR" "$*"; }
 header(){ echo -e "\n${BOLD}$*${NC}"; }
 
 NO_GUI=false
@@ -203,6 +242,55 @@ install_system_deps() {
 }
 
 # ---------------------------------------------------------------------------
+install_opentrack_from_source() {
+    local build_deps=(
+        cmake git
+        qt6-qtbase-private-devel qt6-qttools-devel
+        opencv-devel procps-ng-devel libevdev-devel
+        wine-devel wine-devel.i686
+    )
+
+    info "Installing build dependencies..."
+    _run_privileged dnf install -y "${build_deps[@]}"
+
+    local src_dir=""
+    src_dir="$(mktemp -d)"
+    trap '[[ -n "${src_dir:-}" ]] && rm -rf -- "$src_dir"' RETURN
+
+    info "Cloning opentrack from GitHub..."
+    if ! git clone --depth=1 https://github.com/opentrack/opentrack "$src_dir/opentrack"; then
+        error "Failed to clone opentrack repository"
+        SUMMARY_FAIL+=("opentrack (git clone failed)")
+        return 1
+    fi
+
+    info "Building opentrack (SDK_WINE=ON)..."
+    mkdir -p "$src_dir/build"
+    if ! cmake -S "$src_dir/opentrack" -B "$src_dir/build" \
+            -DSDK_WINE=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local; then
+        error "cmake configuration failed"
+        SUMMARY_FAIL+=("opentrack (cmake failed)")
+        return 1
+    fi
+    if ! make -C "$src_dir/build" -j"$(nproc)"; then
+        error "Build failed"
+        SUMMARY_FAIL+=("opentrack (make failed)")
+        return 1
+    fi
+    if ! _run_privileged make -C "$src_dir/build" install; then
+        error "Installation failed"
+        SUMMARY_FAIL+=("opentrack (make install failed)")
+        return 1
+    fi
+    _run_privileged ldconfig
+
+    info "opentrack installed from source ✓"
+    SUMMARY_OK+=("opentrack (GitHub source, SDK_WINE=ON)")
+}
+
+# ---------------------------------------------------------------------------
 install_opentrack_fedora() {
     header "Installing opentrack..."
 
@@ -229,13 +317,14 @@ install_opentrack_fedora() {
     warn "opentrack is not in the enabled dnf repositories."
     echo
     echo "  Choose an installation method:"
-    echo "  1) Enable RPM Fusion Free and install via dnf  (native, recommended)"
+    echo "  1) Enable RPM Fusion Free and install via dnf"
     echo "  2) Install via Flatpak from Flathub"
-    echo "  3) Skip (install manually later)"
+    echo "  3) Build from GitHub source (recommended for Fedora 43, Wine/LUG support)"
+    echo "  4) Skip (install manually later)"
     echo
-    read -rp "  Selection [1-3]: " ot_choice
+    read -rp "  Selection [1-4]: " ot_choice
 
-    case "${ot_choice:-3}" in
+    case "${ot_choice:-4}" in
         1)
             info "Enabling RPM Fusion Free..."
             local fedora_ver
@@ -273,6 +362,9 @@ install_opentrack_fedora() {
                 SUMMARY_FAIL+=("opentrack (Flatpak install failed)")
             fi
             ;;
+        3)
+            install_opentrack_from_source
+            ;;
         *)
             warn "Skipping opentrack installation."
             warn "Install manually before using head tracking:"
@@ -280,6 +372,10 @@ install_opentrack_fedora() {
             echo "    sudo dnf install -y opentrack"
             echo "  or:"
             echo "    flatpak install flathub io.github.opentrack.OpenTrack"
+            echo "  or (Fedora 43+, includes Wine output plugin):"
+            echo "    git clone --depth=1 https://github.com/opentrack/opentrack"
+            echo "    cmake -S opentrack -B build -DSDK_WINE=ON -DCMAKE_INSTALL_PREFIX=/usr/local"
+            echo "    make -C build -j\$(nproc) && sudo make -C build install"
             SUMMARY_SKIP+=("opentrack (skipped, install manually)")
             ;;
     esac
@@ -918,6 +1014,18 @@ print_summary() {
     fi
 
     echo
+    {
+        printf '[%s] [INFO] --- Summary ---\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+        for item in "${SUMMARY_OK[@]+"${SUMMARY_OK[@]}"}"; do
+            printf '[%s] [INFO]   OK:   %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${item}"
+        done
+        for item in "${SUMMARY_SKIP[@]+"${SUMMARY_SKIP[@]}"}"; do
+            printf '[%s] [WARN]   SKIP: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${item}"
+        done
+        for item in "${SUMMARY_FAIL[@]+"${SUMMARY_FAIL[@]}"}"; do
+            printf '[%s] [ERROR]  FAIL: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${item}"
+        done
+    } >> "${LOG_FILE}"
 }
 
 # ===========================================================================
@@ -925,6 +1033,8 @@ print_summary() {
 # ===========================================================================
 
 main() {
+    _log_init
+
     echo -e "${BOLD}"
     echo "=========================================="
     echo "   openstargazer Setup"
@@ -935,18 +1045,35 @@ main() {
     echo "  3) Deinstallation -- vollstaendig"
     echo "  4) Deinstallation -- benutzerdefiniert"
     echo "  5) Beenden"
+    echo "  6) Debug-Report erstellen"
     echo
 
-    read -rp "  Auswahl [1-5]: " choice
+    read -rp "  Auswahl [1-6]: " choice
 
     case "$choice" in
-        1) do_fresh_install ;;
-        2) do_repair ;;
-        3) do_full_uninstall ;;
-        4) do_custom_uninstall ;;
+        1)
+            _log_run_header "Neuinstallation (fresh install)"
+            do_fresh_install
+            ;;
+        2)
+            _log_run_header "Reparatur (repair)"
+            do_repair
+            ;;
+        3)
+            _log_run_header "Deinstallation vollstaendig (full uninstall)"
+            do_full_uninstall
+            ;;
+        4)
+            _log_run_header "Deinstallation benutzerdefiniert (custom uninstall)"
+            do_custom_uninstall
+            ;;
         5)
             info "Beendet."
             exit 0
+            ;;
+        6)
+            _log_run_header "Debug-Report"
+            bash "${SCRIPT_DIR}/collect-debug-info.sh"
             ;;
         *)
             error "Ungueltige Auswahl: $choice"
