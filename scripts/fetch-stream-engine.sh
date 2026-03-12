@@ -13,6 +13,7 @@ set -euo pipefail
 
 INSTALL_DIR="${HOME}/.local/share/openstargazer"
 LIB_DIR="${INSTALL_DIR}/lib"
+BIN_DIR="${INSTALL_DIR}/bin"
 
 REPO_RAW="https://raw.githubusercontent.com/johngebbie/tobii_4C_for_linux/main"
 
@@ -140,12 +141,19 @@ install_usb_service() {
     $priv systemctl daemon-reload
     $priv systemctl enable --now tobiiusb.service
     info "tobiiusb.service enabled and started ✓"
+
+    # Create a user-local symlink so osg-daemon can find and start the binary
+    # if the system service is ever not running.
+    mkdir -p "${BIN_DIR}"
+    ln -sf "${sbin_dir}/tobiiusbserviced" "${BIN_DIR}/tobiiusbservice"
+    info "Linked: ${BIN_DIR}/tobiiusbservice → ${sbin_dir}/tobiiusbserviced"
 }
 
 # ---------------------------------------------------------------------------
 already_installed() {
     [[ -f "${LIB_DIR}/libtobii_stream_engine.so" ]] && \
-    [[ -f "/usr/local/sbin/tobiiusbserviced" ]]
+    [[ -f "/usr/local/sbin/tobiiusbserviced" ]] && \
+    [[ -e "${BIN_DIR}/tobiiusbservice" ]]
 }
 
 # ---------------------------------------------------------------------------

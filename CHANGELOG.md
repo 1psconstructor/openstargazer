@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.1] – 2026-03-12
 
 ### Fixed
+- `scripts/fetch-stream-engine.sh`: Fehlende Datei `~/.local/share/openstargazer/bin/tobiiusbservice`
+  – das Script installierte `tobiiusbserviced` nur nach `/usr/local/sbin/` (system-weit), legte aber
+  nie den vom Daemon erwarteten User-Local-Pfad an; jetzt wird nach der Systeminstallation ein
+  Symlink `~/.local/share/openstargazer/bin/tobiiusbservice → /usr/local/sbin/tobiiusbserviced`
+  erstellt; `already_installed()` prüft jetzt alle drei Pfade
 - `setup/wizard.py`: Setup-Wizard friert bei Schritt 5 nicht mehr ein – `input()` in
   `step_ingame_instructions()` ist jetzt von `try/except (EOFError, KeyboardInterrupt)` umschlossen;
   verhindert stillen Absturz wenn stdin geschlossen ist (z. B. automatisierter Aufruf)
