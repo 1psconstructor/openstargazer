@@ -642,6 +642,20 @@ Die GTK4-Benutzeroberfläche. Zeigt:
 - Profil-Auswahl
 - Zugang zu Kurven-Editor und Kalibrierung
 
+**Device-Gruppe – Tobii Ein/Aus-Schalter:**
+
+Der Schalter unter „Device → Tobii Eye Tracker 5" trennt das Gerät vollständig vom Daemon
+(LEDs am Tracker gehen aus) und stellt die Verbindung wieder her (LEDs an), ohne den
+Daemon-Prozess zu beenden.
+
+| Schalter | Wirkung |
+|----------|---------|
+| ON  | Gerät verbunden, Tracking aktiv, LEDs an |
+| OFF | Gerät getrennt, kein Tracking, LEDs aus  |
+
+Der Zustand wird alle 250 ms via IPC synchronisiert – ändert sich der Status im Daemon
+(z. B. nach manuellem `pause_tracking`-Aufruf), aktualisiert sich der Schalter automatisch.
+
 **Hinweis:** Die GUI kommuniziert mit dem Daemon über einen Unix-Socket (`~/.local/share/openstargazer/daemon.sock`). Der Daemon muss laufen.
 
 ---
@@ -675,9 +689,10 @@ Verfügbare Befehle (für Entwickler / Skripting):
 | Methode | Beschreibung |
 |---------|-------------|
 | `ping` | Prüft ob Daemon läuft |
-| `get_status` | Verbindungsstatus, FPS, letztes Frame |
+| `get_status` | Verbindungsstatus, FPS, `tracking_enabled`, letztes Frame |
 | `get_config` | Aktuelle Konfiguration |
 | `set_config` | Konfiguration ändern (ohne Neustart) |
+| `set_tracking_enabled` | Tracking pausieren (`false`) oder fortsetzen (`true`) |
 | `start_calibration` | Kalibrierung starten |
 | `list_profiles` | Profile auflisten |
 | `activate_profile` | Profil aktivieren |

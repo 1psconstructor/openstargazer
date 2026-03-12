@@ -60,6 +60,9 @@ class IPCClient:
     def activate_profile(self, name: str) -> dict:
         return self._call("activate_profile", {"name": name})
 
+    def set_tracking_enabled(self, enabled: bool) -> dict:
+        return self._call("set_tracking_enabled", {"enabled": enabled})
+
     def ping(self) -> bool:
         try:
             result = self._call("ping")

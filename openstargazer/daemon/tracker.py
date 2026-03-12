@@ -56,6 +56,7 @@ class TrackerManager:
         self._tracking_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._connected = False
+        self._paused = False
         self._fps = 0.0
         self._reconnect_task: asyncio.Task | None = None
 
@@ -73,12 +74,37 @@ class TrackerManager:
         return self._connected
 
     @property
+    def tracking_enabled(self) -> bool:
+        return not self._paused
+
+    @property
     def fps(self) -> float:
         return self._fps
 
     @property
     def latest_frame(self) -> TrackingFrame:
         return self._latest_frame
+
+    async def pause_tracking(self) -> None:
+        """Disconnect device and stop reconnect watchdog. LEDs turn off."""
+        self._paused = True
+        if self._reconnect_task:
+            self._reconnect_task.cancel()
+            try:
+                await self._reconnect_task
+            except asyncio.CancelledError:
+                pass
+            self._reconnect_task = None
+        self._disconnect()
+
+    async def resume_tracking(self) -> None:
+        """Reconnect device and restart reconnect watchdog. LEDs turn on."""
+        self._paused = False
+        try:
+            await self._connect()
+        except Exception:
+            log.warning("resume_tracking: initial connect failed; watchdog will retry")
+        self._reconnect_task = asyncio.create_task(self._reconnect_watch())
 
     async def start(self) -> None:
         """Load the Stream Engine, connect to the device, start tracking."""
@@ -252,7 +278,7 @@ class TrackerManager:
     async def _reconnect_watch(self) -> None:
         while not self._stop_event.is_set():
             await asyncio.sleep(RECONNECT_INTERVAL_S)
-            if not self._connected and not self._stop_event.is_set():
+            if not self._connected and not self._stop_event.is_set() and not self._paused:
                 log.info("Attempting reconnect…")
                 self._disconnect()
                 await self._connect()

@@ -103,6 +103,20 @@ class MainWindow:
         canvas_label.set_halign(Gtk.Align.START)
         canvas_label.set_margin_start(12)
 
+        # ── Device section ────────────────────────────────────────────
+        device_group = Adw.PreferencesGroup(title="Device")
+
+        self._tobii_row = Adw.ActionRow(
+            title="Tobii Eye Tracker 5",
+            subtitle="Tracking aktiv – LEDs an",
+        )
+        self._tobii_switch = Gtk.Switch()
+        self._tobii_switch.set_active(True)
+        self._tobii_switch.set_valign(Gtk.Align.CENTER)
+        self._tobii_handler_id = self._tobii_switch.connect("state-set", self._on_tobii_toggled)
+        self._tobii_row.add_suffix(self._tobii_switch)
+        device_group.add(self._tobii_row)
+
         # ── Output section ────────────────────────────────────────────
         output_group = Adw.PreferencesGroup(title="Output")
 
@@ -155,6 +169,7 @@ class MainWindow:
 
         # ── Layout ────────────────────────────────────────────────────
         prefs_page = Adw.PreferencesPage()
+        prefs_page.add(device_group)
         prefs_page.add(output_group)
         prefs_page.add(action_group)
 
@@ -204,6 +219,15 @@ class MainWindow:
             self._pitch = hp.get("pitch", 0.0)
             self._roll  = hp.get("roll",  0.0)
             self._head_valid = hp.get("valid", False)
+
+            tracking_enabled = status.get("tracking_enabled", True)
+            from gi.repository import GObject
+            GObject.signal_handler_block(self._tobii_switch, self._tobii_handler_id)
+            self._tobii_switch.set_active(tracking_enabled)
+            GObject.signal_handler_unblock(self._tobii_switch, self._tobii_handler_id)
+            self._tobii_row.set_subtitle(
+                "Tracking aktiv – LEDs an" if tracking_enabled else "Pausiert – LEDs aus"
+            )
 
             if connected:
                 self._status_label.set_markup(
@@ -319,6 +343,17 @@ class MainWindow:
         if self._poll_source_id is not None:
             from gi.repository import GLib
             GLib.source_remove(self._poll_source_id)
+        return False
+
+    def _on_tobii_toggled(self, switch, state) -> bool:
+        try:
+            self._ipc.set_tracking_enabled(state)
+        except Exception as exc:
+            log.warning("Could not toggle tracking: %s", exc)
+            from gi.repository import GObject
+            GObject.signal_handler_block(switch, self._tobii_handler_id)
+            switch.set_active(not state)
+            GObject.signal_handler_unblock(switch, self._tobii_handler_id)
         return False
 
     def _on_udp_toggled(self, switch, state) -> bool:

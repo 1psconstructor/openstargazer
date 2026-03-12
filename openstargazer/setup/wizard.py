@@ -217,7 +217,10 @@ def step_ingame_instructions() -> None:
     b) Start OpenTrack  (use the tobii5-starcitizen profile)
     c) Head tracking will be active within a few seconds
 """)
-    input("  Press Enter to continue…")
+    try:
+        input("  Press Enter to continue…")
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 # ---------------------------------------------------------------------------

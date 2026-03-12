@@ -51,6 +51,7 @@ class IPCServer:
     _ALLOWED_METHODS = frozenset({
         "get_status", "get_config", "set_config",
         "start_calibration", "list_profiles", "activate_profile", "ping",
+        "set_tracking_enabled",
     })
 
     async def start(self) -> None:
@@ -148,6 +149,7 @@ class IPCServer:
         frame = self._tracker.latest_frame
         return {
             "connected": self._tracker.is_connected,
+            "tracking_enabled": self._tracker.tracking_enabled,
             "fps": round(self._tracker.fps, 1),
             "gaze_xy": [frame.gaze_x, frame.gaze_y],
             "gaze_valid": frame.gaze_valid,
@@ -245,3 +247,11 @@ class IPCServer:
 
     async def _rpc_ping(self, _params: dict) -> dict:
         return {"pong": True}
+
+    async def _rpc_set_tracking_enabled(self, params: dict) -> dict:
+        enabled = bool(params.get("enabled", True))
+        if enabled:
+            await self._tracker.resume_tracking()
+        else:
+            await self._tracker.pause_tracking()
+        return {"tracking_enabled": self._tracker.tracking_enabled}

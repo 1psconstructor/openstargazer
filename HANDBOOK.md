@@ -571,6 +571,19 @@ The GTK4 user interface. Shows:
 - Profile selection
 - Access to curve editor and calibration
 
+**Device group – Tobii on/off switch:**
+
+The switch under "Device → Tobii Eye Tracker 5" fully disconnects the device from the daemon
+(tracker LEDs turn off) and reconnects it (LEDs turn on) without stopping the daemon process.
+
+| Switch | Effect |
+|--------|--------|
+| ON  | Device connected, tracking active, LEDs on  |
+| OFF | Device disconnected, no tracking, LEDs off  |
+
+The state is synchronized every 250 ms via IPC — if the status changes in the daemon
+(e.g. via a manual `pause_tracking` call), the switch updates automatically.
+
 **Note:** The GUI communicates with the daemon via a Unix socket (`~/.local/share/openstargazer/daemon.sock`). The daemon must be running.
 
 **Mock mode** – run the GUI without any hardware or daemon:
@@ -591,6 +604,31 @@ Interactive setup wizard. Can be run again at any time to:
 - Re-download Stream Engine
 - Update LUG-Helper configuration
 - Regenerate OpenTrack profile
+
+---
+
+### IPC Interface
+
+The daemon exposes a Unix socket at `~/.local/share/openstargazer/daemon.sock`.
+
+**Security:**
+- Socket and directory are restricted to `0600`/`0700` (owner only)
+- Only whitelisted methods are accepted
+- Requests are limited to 64 KiB
+- UDP target addresses must be loopback; ports must be 1024–65535
+
+Available methods (for developers / scripting):
+
+| Method | Description |
+|--------|-------------|
+| `ping` | Check if daemon is running |
+| `get_status` | Connection status, FPS, `tracking_enabled`, latest frame |
+| `get_config` | Current configuration |
+| `set_config` | Update configuration (without restart) |
+| `set_tracking_enabled` | Pause tracking (`false`) or resume (`true`) |
+| `start_calibration` | Trigger calibration |
+| `list_profiles` | List profiles |
+| `activate_profile` | Activate a profile |
 
 ---
 

@@ -506,7 +506,7 @@ configure_opentrack_profile() {
     # Generate profile via Python (wizard step 4) if package is installed
     if _is_pip_installed; then
         info "Running osg-setup to generate OpenTrack profile..."
-        "$PYTHON_CMD" -m openstargazer.setup.wizard 2>/dev/null || true
+        "$PYTHON_CMD" -m openstargazer.setup.wizard < /dev/null 2>/dev/null || true
         if _is_opentrack_profile_installed; then
             SUMMARY_OK+=("OpenTrack Star Citizen profile")
             return
@@ -969,6 +969,9 @@ do_fresh_install() {
     install_python_package
     install_udev_rules
     install_systemd_service
+    systemctl --user start openstargazer.service 2>/dev/null && \
+        info "openstargazer daemon gestartet" || \
+        warn "Daemon konnte nicht sofort gestartet werden – starte ihn manuell: systemctl --user start openstargazer"
     install_desktop_entry
     configure_opentrack_profile
     run_setup_wizard          # osg-setup: detects LUG, finalises OpenTrack Wine paths
