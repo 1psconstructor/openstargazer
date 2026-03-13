@@ -57,6 +57,7 @@ class TrackerManager:
         self._stop_event = threading.Event()
         self._connected = False
         self._paused = False
+        self._gaze_data_mode = False
         self._fps = 0.0
         self._reconnect_task: asyncio.Task | None = None
 
@@ -144,8 +145,24 @@ class TrackerManager:
             self._dev = self._lib.device_create(self._api, url)
 
             self._bridge = CallbackBridge(self._loop)
-            self._lib.subscribe_gaze(self._dev, self._bridge.gaze_cb)
-            self._lib.subscribe_head_pose(self._dev, self._bridge.head_pose_cb)
+
+            # Try tobii_gaze_data_subscribe (PRP stream 6) first – activates LEDs on ET5.
+            # Fall back to tobii_gaze_point_subscribe (PRP stream 3) if not available.
+            try:
+                self._lib.subscribe_gaze_data(self._dev, self._bridge.gaze_data_cb)
+                self._gaze_data_mode = True
+                log.info("Gaze subscription: tobii_gaze_data_subscribe (PRP stream 6) – primary")
+            except (StreamEngineError, AttributeError) as exc:
+                log.warning("tobii_gaze_data_subscribe not available (%s); "
+                            "falling back to tobii_gaze_point_subscribe (PRP stream 3)", exc)
+                self._lib.subscribe_gaze(self._dev, self._bridge.gaze_cb)
+                self._gaze_data_mode = False
+                log.info("Gaze subscription: tobii_gaze_point_subscribe (PRP stream 3) – fallback")
+
+            try:
+                self._lib.subscribe_head_pose(self._dev, self._bridge.head_pose_cb)
+            except StreamEngineError as exc:
+                log.warning("Head pose not supported by device/library: %s", exc)
 
             self._stop_event.clear()
             self._tracking_thread = threading.Thread(
@@ -173,7 +190,10 @@ class TrackerManager:
 
         if self._dev is not None and self._lib is not None:
             try:
-                self._lib.unsubscribe_gaze(self._dev)
+                if self._gaze_data_mode:
+                    self._lib.unsubscribe_gaze_data(self._dev)
+                else:
+                    self._lib.unsubscribe_gaze(self._dev)
             except Exception:
                 pass
             try:
@@ -193,7 +213,7 @@ class TrackerManager:
 
     def _tracking_loop(self) -> None:
         """Blocking loop running in a dedicated thread."""
-        from openstargazer.engine.api import TOBII_ERROR_NO_ERROR
+        from openstargazer.engine.api import TOBII_ERROR_NO_ERROR, TOBII_ERROR_TIMED_OUT
 
         assert self._lib is not None
         assert self._dev is not None
@@ -203,11 +223,13 @@ class TrackerManager:
 
         while not self._stop_event.is_set():
             rc = self._lib.wait_for_callbacks(self._dev)
-            if rc != TOBII_ERROR_NO_ERROR:
+            # TIMED_OUT (6) is normal when no callbacks arrive within 200ms – not a device loss
+            if rc not in (TOBII_ERROR_NO_ERROR, TOBII_ERROR_TIMED_OUT):
                 log.warning("wait_for_callbacks returned %d – device lost?", rc)
                 self._connected = False
                 break
 
+            # process_callbacks must be called even after TIMED_OUT (correct per SDK docs)
             rc = self._lib.process_callbacks(self._dev)
             if rc != TOBII_ERROR_NO_ERROR:
                 log.warning("process_callbacks returned %d", rc)

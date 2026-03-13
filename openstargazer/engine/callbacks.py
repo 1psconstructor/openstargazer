@@ -14,8 +14,8 @@ import queue
 import threading
 from typing import Callable
 
-from openstargazer.engine.api import TobiiGazePoint, TobiiHeadPose, TOBII_VALIDITY_VALID
-from openstargazer.engine.loader import GazePointCallback, HeadPoseCallback
+from openstargazer.engine.api import TobiiGazePoint, TobiiHeadPose, TobiiGazeData, TOBII_VALIDITY_VALID
+from openstargazer.engine.loader import GazePointCallback, HeadPoseCallback, GazeDataCallback
 
 log = logging.getLogger(__name__)
 
@@ -42,8 +42,9 @@ class CallbackBridge:
         self._head_q: queue.Queue = queue.Queue(maxsize=maxsize)
 
         # Keep ctypes function objects alive (GC protection)
-        self._gaze_cb_ref  = GazePointCallback(self._gaze_callback)
-        self._head_cb_ref  = HeadPoseCallback(self._head_callback)
+        self._gaze_cb_ref      = GazePointCallback(self._gaze_callback)
+        self._head_cb_ref      = HeadPoseCallback(self._head_callback)
+        self._gaze_data_cb_ref = GazeDataCallback(self._gaze_data_callback)
 
     # ------------------------------------------------------------------
     # C callback implementations (called from tracking thread)
@@ -64,6 +65,30 @@ class CallbackBridge:
                 pass  # drop oldest sample rather than blocking tracking thread
         except Exception:
             log.exception("Error in gaze callback")
+
+    def _gaze_data_callback(self, data_ptr: ctypes.POINTER(TobiiGazeData),
+                            _user: ctypes.c_void_p) -> None:
+        try:
+            d = data_ptr.contents
+            left_valid  = d.left_gaze_point_validity  == TOBII_VALIDITY_VALID
+            right_valid = d.right_gaze_point_validity == TOBII_VALIDITY_VALID
+            if left_valid and right_valid:
+                x = (d.left_gaze_point_on_display_area[0] + d.right_gaze_point_on_display_area[0]) / 2
+                y = (d.left_gaze_point_on_display_area[1] + d.right_gaze_point_on_display_area[1]) / 2
+                valid = True
+            elif left_valid:
+                x, y, valid = d.left_gaze_point_on_display_area[0], d.left_gaze_point_on_display_area[1], True
+            elif right_valid:
+                x, y, valid = d.right_gaze_point_on_display_area[0], d.right_gaze_point_on_display_area[1], True
+            else:
+                x, y, valid = 0.5, 0.5, False
+            data = {"ts": d.timestamp_us, "valid": valid, "x": float(x), "y": float(y)}
+            try:
+                self._gaze_q.put_nowait(data)
+            except queue.Full:
+                pass
+        except Exception:
+            log.exception("Error in gaze data callback")
 
     def _head_callback(self, pose_ptr: ctypes.POINTER(TobiiHeadPose),
                        _user: ctypes.c_void_p) -> None:
@@ -97,6 +122,10 @@ class CallbackBridge:
     @property
     def head_pose_cb(self) -> HeadPoseCallback:
         return self._head_cb_ref
+
+    @property
+    def gaze_data_cb(self) -> GazeDataCallback:
+        return self._gaze_data_cb_ref
 
     def drain_gaze(self) -> list[dict]:
         """Non-blocking: return all pending gaze samples."""

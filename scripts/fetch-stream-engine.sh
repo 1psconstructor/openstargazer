@@ -61,6 +61,32 @@ fetch_file() {
 }
 
 # ---------------------------------------------------------------------------
+clear_execstack() {
+    local so="$1"
+    if command -v patchelf &>/dev/null; then
+        patchelf --clear-execstack "$so"
+        info "execstack cleared via patchelf"
+    elif command -v execstack &>/dev/null; then
+        execstack -c "$so"
+        info "execstack cleared via execstack"
+    else
+        # Python struct fallback: ELF PHDR GNU_STACK flags offset 0x158, RWE→RW
+        python3 -c "
+import struct, sys
+with open('$so', 'r+b') as f:
+    f.seek(0x158)
+    flags = struct.unpack('<I', f.read(4))[0]
+    if flags & 0x1:  # execute bit set
+        f.seek(0x158)
+        f.write(struct.pack('<I', flags & ~0x1))
+        print('execstack cleared via Python struct patch')
+    else:
+        print('execstack already clear')
+" 2>/dev/null || warn "Could not clear execstack – library may fail on kernel >= 6.18"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 install_stream_engine_so() {
     local arch
     arch="$(detect_arch)"
@@ -71,6 +97,7 @@ install_stream_engine_so() {
     mkdir -p "${LIB_DIR}"
     if fetch_file "$url" "$dest" "libtobii_stream_engine.so (${arch})"; then
         chmod 755 "$dest"
+        clear_execstack "$dest"
         info "Installed: ${dest}"
     else
         error "Could not download libtobii_stream_engine.so"

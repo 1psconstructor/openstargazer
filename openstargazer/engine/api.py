@@ -90,6 +90,25 @@ class TobiiHeadPose(ctypes.Structure):
     ]
 
 
+class TobiiGazeData(ctypes.Structure):
+    """tobii_gaze_data_t – passed to gaze data callback (advanced API, PRP stream 6).
+    Per-eye gaze origins and gaze points on display area (normalised 0..1).
+    Layout matches Tobii Stream Engine 3.x ABI."""
+    _fields_ = [
+        ("timestamp_us",                              ctypes.c_int64),
+        ("left_gaze_origin_validity",                 ctypes.c_int),
+        ("left_gaze_origin_from_left_user_eye_mm",    ctypes.c_float * 3),
+        ("left_gaze_origin_from_right_user_eye_mm",   ctypes.c_float * 3),
+        ("left_gaze_point_validity",                  ctypes.c_int),
+        ("left_gaze_point_on_display_area",           ctypes.c_float * 2),
+        ("right_gaze_origin_validity",                ctypes.c_int),
+        ("right_gaze_origin_from_left_user_eye_mm",   ctypes.c_float * 3),
+        ("right_gaze_origin_from_right_user_eye_mm",  ctypes.c_float * 3),
+        ("right_gaze_point_validity",                 ctypes.c_int),
+        ("right_gaze_point_on_display_area",          ctypes.c_float * 2),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Python-level data transfer object
 # ---------------------------------------------------------------------------

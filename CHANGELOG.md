@@ -5,6 +5,40 @@ All notable changes to openstargazer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] – 2026-03-13
+
+### Fixed
+- `scripts/fetch-stream-engine.sh`: Executable-Stack-Flag wird nach dem Download von
+  `libtobii_stream_engine.so` automatisch gecleart (`clear_execstack()`). Kernel 6.18+
+  blockiert Shared Libraries mit GNU_STACK-Flags 0x7 (RWE). Methode: `patchelf --clear-execstack`
+  → `execstack -c` → Python-struct-Fallback (Patch auf Offset 0x158 im ELF-PHDR).
+- `openstargazer/engine/loader.py`: Python 3.14 verschärfte ctypes-Typprüfung – `None` ist
+  kein gültiger Wert mehr für CFUNCTYPE-Parameter. `tobii_api_create` übergibt jetzt
+  `ctypes.cast(None, LogCallback)` statt rohem `None`.
+- `openstargazer/engine/loader.py`: Falsche Parameterreihenfolge bei `tobii_device_create` –
+  das Binary erwartet `(api*, url, device**, field_of_use)`, die SDK-Doku beschreibt fälschlich
+  `(api*, url, field_of_use, device**)`. Behebt SEGFAULT beim Verbindungsaufbau.
+- `openstargazer/daemon/tracker.py`: `tobii_head_pose_subscribe` wirft auf ET5 (PID 0313)
+  `NOT_SUPPORTED`; der Fehler wird jetzt als Warning geloggt statt den Connect-Vorgang
+  abzubrechen.
+- `openstargazer/daemon/tracker.py`: `wait_for_callbacks` gibt Code 6 (TIMED_OUT) zurück wenn
+  innerhalb von 200 ms kein Callback eintrifft – normales SDK-Verhalten, kein Geräteverlust.
+  Der Loop behandelt `TIMED_OUT` nicht mehr als Disconnect und ruft `process_callbacks` weiterhin
+  auf (SDK-konformes Verhalten).
+
+### Added
+- `openstargazer/engine/api.py`: Neuer ctypes-Struct `TobiiGazeData` (tobii_gaze_data_t,
+  Stream Engine 3.x ABI) – enthält per-Auge-Gaze-Origin und Gaze-Point-on-Display-Area.
+- `openstargazer/engine/loader.py`: `GazeDataCallback` CFUNCTYPE; Bindings für
+  `tobii_gaze_data_subscribe` / `tobii_gaze_data_unsubscribe` (try/except falls nicht
+  vorhanden); neue Methoden `subscribe_gaze_data()` / `unsubscribe_gaze_data()`.
+- `openstargazer/engine/callbacks.py`: `_gaze_data_callback()` verarbeitet `TobiiGazeData`
+  (mittelt linkes + rechtes Auge, Fallback auf Einzelauge); Property `gaze_data_cb`.
+- `openstargazer/daemon/tracker.py`: Primäre Gaze-Subscription auf `tobii_gaze_data_subscribe`
+  (PRP Stream 6) umgestellt – aktiviert IR-LEDs des ET5 zuverlässig. Fallback auf
+  `tobii_gaze_point_subscribe` (PRP Stream 3) bei NOT_SUPPORTED. Flag `_gaze_data_mode`
+  steuert korrekte Unsubscription in `_disconnect()`.
+
 ## [0.2.1] – 2026-03-12
 
 ### Fixed

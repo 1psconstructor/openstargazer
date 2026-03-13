@@ -15,13 +15,14 @@ import logging
 import os
 from pathlib import Path
 
-from openstargazer.engine.api import TobiiGazePoint, TobiiHeadPose
+from openstargazer.engine.api import TobiiGazePoint, TobiiHeadPose, TobiiGazeData
 
 log = logging.getLogger(__name__)
 
 # Callback function types
 GazePointCallback = ctypes.CFUNCTYPE(None, ctypes.POINTER(TobiiGazePoint), ctypes.c_void_p)
 HeadPoseCallback  = ctypes.CFUNCTYPE(None, ctypes.POINTER(TobiiHeadPose),  ctypes.c_void_p)
+GazeDataCallback  = ctypes.CFUNCTYPE(None, ctypes.POINTER(TobiiGazeData),  ctypes.c_void_p)
 DeviceUrlReceiver = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_void_p)
 LogCallback       = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p)
 
@@ -71,12 +72,15 @@ class StreamEngineLib:
         ]
 
         # tobii_device_create
+        # NOTE: actual binary argument order differs from SDK documentation!
+        # SDK docs say: (api*, url, field_of_use, device**)
+        # Binary ABI:   (api*, url, device**, field_of_use)   ← use this order
         L.tobii_device_create.restype  = ctypes.c_int
         L.tobii_device_create.argtypes = [
-            ctypes.c_void_p,               # tobii_api_t*
-            ctypes.c_char_p,               # url
-            ctypes.c_int,                  # tobii_field_of_use_t (1 = interactive)
-            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_void_p,                    # tobii_api_t*
+            ctypes.c_char_p,                    # url
+            ctypes.POINTER(ctypes.c_void_p),    # device** BEFORE field_of_use
+            ctypes.c_int,                        # tobii_field_of_use_t
         ]
 
         # tobii_device_destroy
@@ -114,6 +118,18 @@ class StreamEngineLib:
         L.tobii_device_process_callbacks.restype  = ctypes.c_int
         L.tobii_device_process_callbacks.argtypes = [ctypes.c_void_p]
 
+        # tobii_gaze_data_subscribe
+        try:
+            L.tobii_gaze_data_subscribe.restype  = ctypes.c_int
+            L.tobii_gaze_data_subscribe.argtypes = [
+                ctypes.c_void_p, GazeDataCallback, ctypes.c_void_p,
+            ]
+            # tobii_gaze_data_unsubscribe
+            L.tobii_gaze_data_unsubscribe.restype  = ctypes.c_int
+            L.tobii_gaze_data_unsubscribe.argtypes = [ctypes.c_void_p]
+        except AttributeError:
+            pass  # not all builds expose gaze_data stream
+
         # tobii_get_api_version
         try:
             L.tobii_get_api_version.restype  = ctypes.c_int
@@ -126,7 +142,7 @@ class StreamEngineLib:
 
     def api_create(self) -> ctypes.c_void_p:
         api_ptr = ctypes.c_void_p()
-        rc = self._lib.tobii_api_create(ctypes.byref(api_ptr), None, None)
+        rc = self._lib.tobii_api_create(ctypes.byref(api_ptr), ctypes.cast(None, LogCallback), None)
         if rc != 0:
             from openstargazer.engine.api import error_name
             raise StreamEngineError(f"tobii_api_create failed: {error_name(rc)}")
@@ -153,7 +169,7 @@ class StreamEngineLib:
         dev_ptr = ctypes.c_void_p()
         FIELD_OF_USE_INTERACTIVE = 1
         rc = self._lib.tobii_device_create(
-            api, url.encode(), FIELD_OF_USE_INTERACTIVE, ctypes.byref(dev_ptr)
+            api, url.encode(), ctypes.byref(dev_ptr), FIELD_OF_USE_INTERACTIVE
         )
         if rc != 0:
             from openstargazer.engine.api import error_name
@@ -180,6 +196,15 @@ class StreamEngineLib:
 
     def unsubscribe_head_pose(self, dev: ctypes.c_void_p) -> None:
         self._lib.tobii_head_pose_unsubscribe(dev)
+
+    def subscribe_gaze_data(self, dev: ctypes.c_void_p, cb: GazeDataCallback) -> None:
+        rc = self._lib.tobii_gaze_data_subscribe(dev, cb, None)
+        if rc != 0:
+            from openstargazer.engine.api import error_name
+            raise StreamEngineError(f"tobii_gaze_data_subscribe failed: {error_name(rc)}")
+
+    def unsubscribe_gaze_data(self, dev: ctypes.c_void_p) -> None:
+        self._lib.tobii_gaze_data_unsubscribe(dev)
 
     def wait_for_callbacks(self, dev: ctypes.c_void_p) -> int:
         dev_array = (ctypes.c_void_p * 1)(dev)
