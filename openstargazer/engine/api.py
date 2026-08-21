@@ -1,18 +1,10 @@
-"""
-ctypes structures matching the Tobii Stream Engine C ABI.
-
-All structs must exactly mirror the C layout so ctypes can cast pointers
-returned from callback functions without copying.
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import ctypes
 from dataclasses import dataclass
 
-
-# ---------------------------------------------------------------------------
-# Tobii error codes
-# ---------------------------------------------------------------------------
 
 TOBII_ERROR_NO_ERROR = 0
 TOBII_ERROR_INTERNAL = 1
@@ -66,34 +58,25 @@ def error_name(code: int) -> str:
     return ERROR_NAMES.get(code, f"UNKNOWN({code})")
 
 
-# ---------------------------------------------------------------------------
-# C structs
-# ---------------------------------------------------------------------------
-
 class TobiiGazePoint(ctypes.Structure):
-    """tobii_gaze_point_t – passed to gaze point callback."""
     _fields_ = [
         ("timestamp_us", ctypes.c_int64),
         ("validity",     ctypes.c_int),
-        ("position_xy",  ctypes.c_float * 2),   # normalised [0..1]
+        ("position_xy",  ctypes.c_float * 2),
     ]
 
 
 class TobiiHeadPose(ctypes.Structure):
-    """tobii_head_pose_t – passed to head pose callback."""
     _fields_ = [
         ("timestamp_us",        ctypes.c_int64),
         ("position_validity",   ctypes.c_int),
-        ("position_xyz_mm",     ctypes.c_float * 3),  # X, Y, Z in mm
+        ("position_xyz_mm",     ctypes.c_float * 3),
         ("rotation_validity",   ctypes.c_int),
-        ("rotation_xyz_deg",    ctypes.c_float * 3),  # yaw, pitch, roll in degrees
+        ("rotation_xyz_deg",    ctypes.c_float * 3),
     ]
 
 
 class TobiiGazeData(ctypes.Structure):
-    """tobii_gaze_data_t – passed to gaze data callback (advanced API, PRP stream 6).
-    Per-eye gaze origins and gaze points on display area (normalised 0..1).
-    Layout matches Tobii Stream Engine 3.x ABI."""
     _fields_ = [
         ("timestamp_us",                              ctypes.c_int64),
         ("left_gaze_origin_validity",                 ctypes.c_int),
@@ -109,28 +92,25 @@ class TobiiGazeData(ctypes.Structure):
     ]
 
 
-# ---------------------------------------------------------------------------
-# Python-level data transfer object
-# ---------------------------------------------------------------------------
-
 @dataclass
 class TrackingFrame:
-    """Unified gaze + head-pose sample, ready for the pipeline."""
-    gaze_x: float        # normalised [0..1], -1 if invalid
-    gaze_y: float        # normalised [0..1], -1 if invalid
+    gaze_x: float
+    gaze_y: float
     gaze_valid: bool
 
-    head_x: float        # mm
-    head_y: float        # mm
-    head_z: float        # mm
+    head_x: float
+    head_y: float
+    head_z: float
     head_pos_valid: bool
 
-    yaw: float           # degrees
-    pitch: float         # degrees
-    roll: float          # degrees
+    yaw: float
+    pitch: float
+    roll: float
     head_rot_valid: bool
 
-    timestamp_us: int    # microseconds since epoch (device clock)
+    timestamp_us: int
+
+    head_pos_from_one_eye: bool = False
 
     @classmethod
     def invalid(cls) -> "TrackingFrame":

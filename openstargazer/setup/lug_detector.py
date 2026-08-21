@@ -1,12 +1,5 @@
-"""
-LUG-Helper installation detector.
-
-Reads the Star Citizen Linux Users Group helper configuration to
-automatically find:
-  - Wine prefix (Star Citizen install location)
-  - Wine runner path (LUG-wine-tkg / GE-Proton)
-  - ESYNC / FSYNC settings
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import logging
@@ -35,12 +28,11 @@ def _get_runner_search_paths() -> list[Path]:
 
 @dataclass
 class LUGInstall:
-    """Detected LUG-Helper / Star Citizen installation details."""
     wine_prefix: Path
     runner_path: Path | None
     esync: bool
     fsync: bool
-    proton_type: str   # "lug-wine-tkg" | "ge-proton" | "unknown"
+    proton_type: str
     lug_config_dir: Path
 
     def __str__(self) -> str:
@@ -56,8 +48,6 @@ class LUGInstall:
 
 
 class LUGDetector:
-    """Detects and parses a LUG-Helper Star Citizen installation."""
-
     def __init__(self) -> None:
         self._config_dir: Path | None = None
 
@@ -72,10 +62,6 @@ class LUGDetector:
         self._config_dir = value
 
     def detect(self) -> LUGInstall | None:
-        """
-        Try to auto-detect the LUG-Helper installation.
-        Returns None if no installation is found.
-        """
         config_file = self._find_config_file()
         if config_file is None:
             log.info("No LUG-Helper config found in %s", self.CONFIG_DIR)
@@ -104,8 +90,6 @@ class LUGDetector:
         )
 
     def find_runner(self, cfg: dict[str, str] | None = None) -> Path | None:
-        """Search for an installed LUG Wine runner or GE-Proton."""
-        # 1. Check explicit runner path in config
         if cfg:
             runner_raw = cfg.get("WINE_RUNNER_PATH") or cfg.get("runner_path")
             if runner_raw:
@@ -113,28 +97,24 @@ class LUGDetector:
                 if p.exists():
                     return p
 
-        # 2. Search known directories
         for base in _get_runner_search_paths():
             if not base.exists():
                 continue
-            candidates = sorted(base.iterdir(), reverse=True)  # newest first
+            candidates = sorted(base.iterdir(), reverse=True)
             for entry in candidates:
                 wine_bin = entry / "bin" / "wine"
                 if wine_bin.exists():
                     log.debug("Found runner: %s", wine_bin)
                     return wine_bin
-                wine_bin = entry / "files" / "bin" / "wine"  # Proton layout
+                wine_bin = entry / "files" / "bin" / "wine"
                 if wine_bin.exists():
                     return wine_bin
 
         log.warning("No Wine runner found in standard paths")
         return None
 
-    # ------------------------------------------------------------------
-    # Internal helpers
 
     def _find_config_file(self) -> Path | None:
-        """Look for the LUG-Helper configuration file."""
         candidates = [
             self.CONFIG_DIR / "config",
             self.CONFIG_DIR / "settings",
@@ -145,7 +125,6 @@ class LUGDetector:
         for p in candidates:
             if p.exists():
                 return p
-        # Also search for any file in the config dir
         if self.CONFIG_DIR.exists():
             for p in self.CONFIG_DIR.iterdir():
                 if p.is_file():
@@ -154,7 +133,6 @@ class LUGDetector:
 
     @staticmethod
     def _parse_config(path: Path) -> dict[str, str]:
-        """Parse a simple KEY="VALUE" shell-style config file."""
         result: dict[str, str] = {}
         try:
             text = path.read_text(errors="replace")
@@ -171,19 +149,17 @@ class LUGDetector:
 
     @staticmethod
     def _resolve_prefix(cfg: dict[str, str]) -> Path | None:
-        """Determine the Wine prefix from config keys or standard paths."""
         for key in ("WINEPREFIX", "wine_prefix", "SC_PREFIX"):
             if key in cfg:
                 p = Path(cfg[key]).expanduser()
                 if p.exists():
                     return p
 
-        # Common default paths
         defaults = [
             Path.home() / "Games" / "star-citizen" / "prefix",
             Path.home() / ".wine",
             Path(os.environ.get("XDG_DATA_HOME", "~/.local/share")).expanduser()
-            / "Steam" / "steamapps" / "compatdata" / "959999",  # SC app id
+            / "Steam" / "steamapps" / "compatdata" / "959999",
         ]
         for p in defaults:
             if p.exists():

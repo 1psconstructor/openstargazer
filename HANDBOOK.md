@@ -20,6 +20,7 @@
 8. [OpenTrack Integration](#8-opentrack-integration)
 9. [Star Citizen / LUG-Helper](#9-star-citizen--lug-helper)
 10. [Operating Modes & Use Cases](#10-operating-modes--use-cases)
+10a. [Language](#10a-language)
 11. [Calibration](#11-calibration)
 12. [Profiles](#12-profiles)
 13. [Best Practices](#13-best-practices)
@@ -238,10 +239,10 @@ GTK4, libadwaita, python3-gi (PyGObject), libusb, usbutils, opentrack, curl, tar
 
 Then:
 ```bash
-python3 -m pip install --user -e ".[tray]"
+python3 -m pip install --user ".[tray]"
 # or with PEP 668:
 python3 -m venv ~/.local/share/openstargazer/venv
-~/.local/share/openstargazer/venv/bin/pip install -e ".[tray]"
+~/.local/share/openstargazer/venv/bin/pip install ".[tray]"
 ```
 
 ---
@@ -249,13 +250,14 @@ python3 -m venv ~/.local/share/openstargazer/venv
 ### Installation Flags
 
 ```bash
-./install.sh [--no-gui] [--mock]
+./install.sh [--no-gui] [--mock] [--lang <code>]
 ```
 
 | Flag | Effect |
 |------|--------|
 | `--no-gui` | Skips desktop entry and icon installation |
 | `--mock` | (developer) Installs without real hardware dependencies |
+| `--lang <code>` | Forces the installer's own language (`en`, `de`, `fr`, `it`, `es`) for this run, overriding `OSG_LANG` and the system locale. Exported, so the setup wizard this hands off to inherits it too. |
 
 ---
 
@@ -265,9 +267,29 @@ After installation the **Setup Wizard** (`osg-setup`) starts automatically.
 
 ### Wizard Steps
 
-**Step 1: Stream Engine**
-- Checks if `libtobii_stream_engine.so` and `tobiiusbservice` exist under `~/.local/share/openstargazer/`
-- Offers to download them automatically (`fetch-stream-engine.sh`)
+**Step 1: Tracking Backend**
+- On the default `native` backend there is nothing to install — the step
+  just confirms it. It speaks USB directly, with no Tobii binaries and no
+  `tobiiusbserviced`.
+- On `stream-engine` it checks whether `libtobii_stream_engine.so` and
+  `tobiiusbservice` exist under `~/.local/share/openstargazer/` and offers
+  to download them (`fetch-stream-engine.sh`). The Stream Engine backend
+  is optional; it is not required for head pitch, which the next step
+  covers without it.
+
+**Extended head tracking (optional)**
+- The step that decides whether you get four axes or six. The gaze stream
+  carries no head rotation — measured across all 39 device fields — so
+  turn and tilt come from the ET5's own infrared camera and a neural
+  network whose weights ship with the project (GPL-3.0).
+- The costs are printed before the question, not after it: `onnxruntime`
+  as an extra package, about 6 ms per picture (a fifth of one core at
+  33 Hz), and that the pictures are read, measured and dropped — nothing
+  stored, nothing sent anywhere.
+- It never defaults to yes when the source could not start on this
+  machine, and answering no does not move a `stream-engine` user off
+  their backend. Changeable later in the settings window or as `source`
+  under `[input]`.
 
 **Step 2: Hardware Detection**
 - Searches via `lsusb` for known Tobii USB IDs
@@ -395,12 +417,76 @@ It is automatically created with default values on first run.
 [device]
 preferred_url = ""
 use_head_pose = true
+backend = "native"
 ```
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `preferred_url` | String | `""` | Direct USB URL of the device (e.g. `"usb://0x2104/0x0127"`). Empty = use first found device. |
+| `preferred_url` | String | `""` | Direct USB URL of the device (e.g. `"usb://0x2104/0x0127"`). Empty = use first found device. Only used by the `stream-engine` backend. |
 | `use_head_pose` | Bool | `true` | If `true`: head position and rotation are processed. If `false`: gaze point data only, no head tracking. |
+| `backend` | String | `"native"` | The older name for the input source, kept readable so existing configs keep working: `"native"` means the source `et5_native`, `"stream-engine"` means `et5_stream_engine`. Can be overridden per-run with `osg-daemon --backend stream-engine`. An unknown value falls back to the default with a warning. See `[input]` below, which is the same setting with the full list. |
+
+**Native backend (default):** `openstargazer/native/` talks to the ET5
+directly over USB, without Tobii's Stream Engine binaries and without the
+`tobiiusbserviced` background service. It delivers head **position**,
+**roll** and the gaze point. It does **not** deliver yaw or pitch — the
+gaze stream carries no head rotation, which was measured across all 39
+device fields rather than left unimplemented. Those two axes come from
+the `et5_ttp_camera` source described under `[input]`.
+
+Switching backends does not require a reinstall. The `stream-engine`
+backend is optional — it is not needed for head pitch and the installer
+no longer offers it. If you do use it, run
+`./scripts/fetch-stream-engine.sh` once to fetch its binaries, then set
+`backend = "stream-engine"` under `[device]` yourself.
+
+---
+
+### [input]
+
+```toml
+[input]
+source = "et5_native"
+
+[input.et5_camera]
+model_path = ""
+```
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `source` | String | `"et5_native"` | Which input source the daemon starts. See the table below. An unknown name is refused at start-up with the list of the ones that exist. |
+| `et5_camera.model_path` | String | `""` | Path to a head-pose ONNX model. Empty means the shipped weights: the user directory `~/.local/share/openstargazer/models/` first, then the copy inside the package. |
+
+| Source | Needs | Axes |
+|--------|-------|------|
+| `et5_native` | nothing beyond `pyusb` | position, roll, gaze |
+| `et5_ttp_camera` | `onnxruntime` (`pip install 'openstargazer[camera]'`) | the same **plus yaw and pitch** |
+| `et5_stream_engine` | Tobii's unofficial binaries | six, through Tobii's own software |
+| `mock` | nothing | a simulated signal, for testing without hardware |
+
+**Extended head tracking (`et5_ttp_camera`)** reads the ET5's infrared
+camera alongside the gaze stream and puts each picture through a neural
+network whose weights ship with the project under GPL-3.0
+(`openstargazer/models/head-pose.onnx`, trained from scratch on
+`replicantface` — MIT). No third-party model download is needed; the face
+patch is cropped from the gaze stream's eye positions, so no separate
+localizer model is required either.
+
+What it costs: `onnxruntime` as an extra package, about 6 ms per picture
+(a fifth of one core at 33 Hz), and the camera being read — the pictures
+are measured and dropped, nothing is stored and nothing leaves the
+machine. The gaze stream is unaffected: 33.1 fps measured with and
+without, every sample distinct.
+
+The daemon chooses its source when it starts, so a change takes effect on
+the next start:
+
+```bash
+systemctl --user restart openstargazer
+```
+
+The setup wizard asks for this, and the settings window has it as a
+switch — it is not a setting you have to edit a file for.
 
 ---
 
@@ -429,27 +515,95 @@ mode = "head_and_gaze"
 
 ```toml
 [filter]
-one_euro_min_cutoff = 0.5
-one_euro_beta = 0.007
+one_euro_min_cutoff = 2.0
+one_euro_beta = 0.1
+gaze_min_cutoff = 1.0
+gaze_beta = 1.0
 gaze_deadzone_px = 30.0
 ```
 
 The **One-Euro Filter** is an adaptive low-pass filter. It reduces jitter at slow movements while allowing fast movements to pass through with nearly no delay.
 
+Head axes and gaze are filtered with **separate parameters**, because they are measured in different units: the head axes in degrees and millimetres, gaze in normalised screen coordinates from 0 to 1. A head turn covers tens of degrees per second where a saccade covers whole units, so `beta` has to be orders of magnitude larger on the gaze side to engage at all.
+
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `one_euro_min_cutoff` | Float (Hz) | `0.5` | Minimum cutoff frequency. **Smaller = smoother at rest, but more latency.** Range: 0.1–2.0 |
-| `one_euro_beta` | Float | `0.007` | Speed coefficient. **Larger = less lag on fast movements.** Range: 0.0–0.1 |
+| `one_euro_min_cutoff` | Float (Hz) | `2.0` | Minimum cutoff frequency for the **head axes**. **Smaller = smoother at rest, but more latency.** Range: 0.5–5.0 |
+| `one_euro_beta` | Float | `0.1` | Speed coefficient for the **head axes**. **Larger = less lag on fast movements.** Range: 0.0–0.2 |
+| `gaze_min_cutoff` | Float (Hz) | `1.0` | Minimum cutoff frequency for **gaze**. Range: 0.5–3.0 |
+| `gaze_beta` | Float | `1.0` | Speed coefficient for **gaze**. Range: 0.0–4.0 |
 | `gaze_deadzone_px` | Float (pixels) | `30.0` | Gaze deadzone in pixels. Small eye movements below this threshold are ignored to prevent flickering. |
+
+Measured at 33 Hz, for a saccade across 60% of the screen. "Jitter kept" is the share of fixation noise that survives the filter — lower is calmer:
+
+| `gaze_min_cutoff` | `gaze_beta` | Jitter kept | 90% of a saccade |
+|---|---|---|---|
+| 1.0 | 0.0 | 26% | 394 ms |
+| 1.0 | 1.0 (default) | 27% | 121 ms |
+| 1.0 | 2.0 | 28% | 61 ms |
+| 2.0 | 1.0 | 38% | 91 ms |
+
+Raise `gaze_beta` first if the dot drags behind your eye; lower `gaze_min_cutoff` if it never settles.
+
+The head axes were measured the same way, at 33 Hz. "90% of a turn" is a 20° step; "behind at 60°/s" is how far the reported angle trails a steady turn, given as the time offset it amounts to; "jitter kept" is the share of the device's own 0.05°/frame jitter that survives:
+
+| `one_euro_min_cutoff` | `one_euro_beta` | Jitter kept | 90% of a turn | Behind at 60°/s |
+|---|---|---|---|---|
+| 0.5 | 0.007 (previous default) | 22% | 544 ms | 173 ms |
+| 1.0 | 0.02 | 30% | 211 ms | 72 ms |
+| 2.0 | 0.1 (default) | 41% | 60 ms | 20 ms |
+| 3.0 | 0.1 | 48% | 60 ms | 18 ms |
+| 5.0 | 0.1 | 57% | 60 ms | 14 ms |
+
+One frame of the ET5 lasts 30 ms, so pushing the delay much below that gains nothing measurable — the device, USB and the network hop already cost more. Raise `one_euro_min_cutoff` only if the view still feels like it is catching up with your head; lower it if the view drifts while you sit still.
+
+Both settings apply to all six head axes, including the millimetre ones. `beta` scales with the signal's own speed, so the same value works for degrees per second and millimetres per second without a separate parameter.
 
 **Filter recommendations:**
 
 | Use case | `min_cutoff` | `beta` |
 |----------|-------------|--------|
-| Default (Star Citizen) | `0.5` | `0.007` |
-| Very smooth, some lag | `0.2` | `0.003` |
-| Fast tracking, some jitter | `1.0` | `0.02` |
-| FPS shooter (max response) | `1.5` | `0.05` |
+| Default (Star Citizen) | `2.0` | `0.1` |
+| Very smooth, some lag | `1.0` | `0.05` |
+| Fast tracking, some jitter | `3.0` | `0.1` |
+| FPS shooter (max response) | `5.0` | `0.15` |
+
+---
+
+### [neutral_pose]
+
+```toml
+[neutral_pose]
+enabled = true
+yaw = 11.7
+pitch = 0.0
+roll = -1.2
+x = -200.0
+y = -105.0
+z = 970.0
+```
+
+The tracker reports where your head is **in front of the sensor**, not how far it has moved from where you normally sit. Those are the same thing only if you sit exactly on the sensor's axis. Seated 200 mm to its left and facing the middle of the screen, your head really is turned by 11.7°, and the reading says so — correct as a measurement, unusable in a game, because the posture you consider "straight ahead" is whatever you happen to sit in.
+
+Recentring stores your current pose and subtracts it from everything the outputs receive. Set it the way you actually sit:
+
+| Where | How |
+|---|---|
+| GUI | *Centre point* → **Set**. **Clear** goes back to device coordinates. |
+| Command line | `osg-recenter`, or `osg-recenter --clear` |
+| Hotkey | bind `osg-recenter` to a key in your desktop's shortcut editor |
+
+There is no built-in global hotkey, and that is not an oversight: on Wayland an application cannot grab a shortcut for keys it does not have focus for, which mid-game it never has. Shortcuts belong to the compositor, so the reliable route is the desktop's own shortcut editor pointing at the `osg-recenter` command. On KDE: *System Settings → Keyboard → Shortcuts → Add Command*.
+
+The daemon refuses to recentre while it cannot see a head — an invalid frame reads as zeros, and storing those would put the origin on the sensor itself.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `enabled` | Bool | `false` | Whether the stored pose is subtracted. `false` means the outputs get device coordinates. |
+| `yaw`, `pitch`, `roll` | Float (degrees) | `0.0` | The remembered rotation. |
+| `x`, `y`, `z` | Float (mm) | `0.0` | The remembered position. `z` is the distance to the tracker, around 600–1000 mm seated. |
+
+Written by the recentre command; editing it by hand works but is rarely what you want. It is stored in the configuration so that it survives a restart — a centre you have to set again after every login is one nobody sets.
 
 ---
 
@@ -515,7 +669,62 @@ curve = [[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]]
 
 ---
 
+### [display]
+
+```toml
+[display]
+configured = false
+monitor = ""
+screen_width_px = 0
+screen_height_px = 0
+marker_left_px = 0.0
+marker_right_px = 0.0
+marker_distance_mm = 185.0
+```
+
+The result of the alignment step (GUI → *Align the device with the
+screen*). Only the **measurement** is stored; pixel density, physical
+screen width and tracker position are derived from it every time, so no
+stored number can drift away from what it was computed from.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `configured` | Bool | `false` | `false` until the step has been run. Every derived value counts as unknown while it is. |
+| `monitor` | String | `""` | The screen it was measured on (e.g. `"DP-2"`). The measurement is valid for that one only. |
+| `screen_width_px` / `screen_height_px` | Int | `0` | Resolution of that screen at the time of the measurement. |
+| `marker_left_px` / `marker_right_px` | Float | `0.0` | The two line positions the user settled on, in pixels from the left edge. |
+| `marker_distance_mm` | Float | `185.0` | Physical distance between the marks on the device. A constant of the ET5; change it only for different hardware. |
+
+**Note:** these values are **not applied to the gaze data yet**. The step
+measures the horizontal geometry; the tracker's vertical distance and
+seating distance are still derived separately. Since v0.4.0 head-pose
+weights ship with the project, so no model download is needed for a
+complete head-tracking setup. Run the step again whenever the physical
+setup changes.
+
+---
+
 ## 7. Operation & Features
+
+### osg-tray — the status icon
+
+`osg-tray` puts openstargazer in the panel and keeps it there after the configuration window is closed. It is installed to start with your session; start it by hand with `osg-tray`.
+
+The first line of the menu is the status, refreshed every three seconds, and it distinguishes three states that are easy to confuse:
+
+| Line | Means |
+|---|---|
+| *tracking, 33 fps* | daemon running, tracker connected, data flowing |
+| *running, no tracker* | daemon running, device absent or claimed by something else |
+| *daemon stopped* | nothing is running — the service is stopped or was never started |
+
+Below it: **Set centre point** (the same as `osg-recenter`), **Tracking on**, **Settings…** (opens the configuration window), and a **Service** submenu with *Start*, *Restart*, *Stop* and *Remove…*.
+
+Everything under *Service* that changes state asks before it acts, and says what the answer costs — stopping the daemon takes head tracking away from a running game, and removing the service also stops it from returning at the next login. Removing does not uninstall the program: `osg-setup` puts the service back.
+
+It is a separate program because the tray libraries are GTK 3 while the configuration window is GTK 4, and one process cannot load both.
+
+**If no icon appears:** the tray needs an AppIndicator library. On Fedora: `sudo dnf install libappindicator-gtk3`. Ayatana's newer `libayatana-appindicator` works too — both names are tried.
 
 ### osg-daemon
 
@@ -565,24 +774,65 @@ osg-daemon --config /path/to/config.toml
 osg-config
 ```
 
-The GTK4 user interface. Shows:
-- Live tracking data preview
-- Connection status and FPS
-- Profile selection
-- Access to curve editor and calibration
+The GTK4/libadwaita settings window. On the first run it opens the guided
+setup; afterwards it opens the overview, a 3×2 grid of cards:
 
-**Device group – Tobii on/off switch:**
+| Card | What is behind it |
+|------|-------------------|
+| **Calibration** | Gaze calibration, the live preview, the screen alignment — and the neutral point |
+| **Games** | Which game was detected and set up |
+| **Output** | OpenTrack UDP and FreeTrack, and the **UDP port** |
+| **Gaze preview** | The fullscreen overlay showing where you are looking |
+| **Curves** | The per-axis response curves |
+| **Settings** | Head tracking source, the background service, the language |
 
-The switch under "Device → Tobii Eye Tracker 5" fully disconnects the device from the daemon
-(tracker LEDs turn off) and reconnects it (LEDs turn on) without stopping the daemon process.
+Above the grid sits the status line: a coloured dot, what the tracker is
+doing, and the on/off control. Below it, the header carries the language
+picker, the profile menu and three state dots (service · head tracking ·
+output).
 
-| Switch | Effect |
-|--------|--------|
-| ON  | Device connected, tracking active, LEDs on  |
-| OFF | Device disconnected, no tracking, LEDs off  |
+**Turning the device off and on:**
 
-The state is synchronized every 250 ms via IPC — if the status changes in the daemon
-(e.g. via a manual `pause_tracking` call), the switch updates automatically.
+The button beside the status line disconnects the device from the daemon
+(the tracker's LEDs go out) and reconnects it, without stopping the daemon
+itself.
+
+| State | Effect |
+|-------|--------|
+| On  | Device connected, tracking active, LEDs on |
+| Off | Device closed, no tracking, LEDs off |
+
+Switching off takes about a third of a second, switching on is immediate.
+The status line follows the daemon rather than the button, so a change made
+elsewhere — the tray icon, `osg-ipc` — shows up here too.
+
+**The neutral point** lives on the calibration page, next to the gaze
+calibration: both answer what "straight ahead" means for the person in the
+chair, one for the eyes and one for the head.
+
+**The output port** is on the output page. OpenTrack listens on 4242 by
+default; anything from 1024 to 65535 is accepted, and the daemon refuses
+the rest rather than storing a port nothing can use.
+
+**The background service** — start, restart, stop, remove, and set up
+autostart — is on the settings page. It is the same service the tray icon
+controls, and it asks the same questions before stopping or removing it.
+
+**Profiles** are in the header menu: switch between saved ones, save the
+current settings under a name, or open the manager to rename and delete.
+The button shows which profile is in force.
+
+**Extended head tracking:**
+
+The switch on the settings page turns the camera source on and off
+(`et5_ttp_camera` against `et5_native`, see `[input]`), with what it costs
+written in the row. Two things it does rather than pretend:
+
+- When `onnxruntime` or the weights are missing, the switch is greyed out
+  and the row says which of the two it is — the two have different fixes.
+- The daemon binds its source at start-up, so the row asks for a restart
+  after a change and offers a button for it when the systemd user service
+  is installed. Nothing is swapped out underneath a running calibration.
 
 **Note:** The GUI communicates with the daemon via a Unix socket (`~/.local/share/openstargazer/daemon.sock`). The daemon must be running.
 
@@ -601,7 +851,7 @@ osg-setup
 ```
 
 Interactive setup wizard. Can be run again at any time to:
-- Re-download Stream Engine
+- Download Stream Engine binaries (optional — only needed if you use the `stream-engine` backend; the native backend needs no download)
 - Update LUG-Helper configuration
 - Regenerate OpenTrack profile
 
@@ -622,11 +872,14 @@ Available methods (for developers / scripting):
 | Method | Description |
 |--------|-------------|
 | `ping` | Check if daemon is running |
-| `get_status` | Connection status, FPS, `tracking_enabled`, latest frame |
-| `get_config` | Current configuration |
-| `set_config` | Update configuration (without restart) |
+| `get_status` | Connection status, FPS, `tracking_enabled`, latest frame. `gaze_xy` and `head_pose` are what the outputs receive -- filtered, and for the head axes curved, scaled and inverted; `gaze_raw_xy` and `head_pose_raw` are the untouched device readings. `head_pose` carries `pos_valid` and `rot_valid` separately, since the device can locate a head without being able to say how it is turned |
+| `get_config` | Current configuration. `input` reports the running source, the sources that exist, and whether the camera source could run here at all (`onnxruntime`, `weights`, `ready`) |
+| `set_config` | Update configuration. Applied without a restart, except `input.source`: the daemon binds its source at start-up, so that one is stored and the answer carries `restart_required`. An unknown source is refused by name |
 | `set_tracking_enabled` | Pause tracking (`false`) or resume (`true`) |
-| `start_calibration` | Trigger calibration |
+| `start_calibration` | Start calibration, returns the point layout |
+| `calibration_collect` | Collect samples for the point currently shown |
+| `calibration_finish` | Fit, check it, store it only if usable, and return the per-point report |
+| `calibration_cancel` | Discard the run, keep the stored calibration |
 | `list_profiles` | List profiles |
 | `activate_profile` | Activate a profile |
 
@@ -764,38 +1017,184 @@ Yaw, Pitch, and Roll remain active.
 
 ---
 
+## 10a. Language
+
+Every user-facing string of the installer, the setup wizard and the GUI comes
+from a language file. Five ship, and all five are complete:
+
+```
+openstargazer/locales/en.lang     English (the reference)
+openstargazer/locales/de.lang     Deutsch
+openstargazer/locales/fr.lang     Français
+openstargazer/locales/it.lang     Italiano
+openstargazer/locales/es.lang     Español
+```
+
+The format is one entry per line, `#` starts a comment:
+
+```
+install.title = openstargazer Setup
+backend.chosen = Backend: {backend}
+```
+
+`{name}` placeholders are filled in at runtime — keep them spelled exactly as
+in `en.lang`. A test refuses a translation that spells one differently or
+drops it, because that is a crash at the moment the string is shown rather
+than a wrong word.
+
+Switch language in the settings window — the globe in the header, or the
+full list under Settings — or from the environment:
+
+```bash
+OSG_LANG=fr osg-config
+```
+
+Selection order: `OSG_LANG`, then `LC_ALL`, `LC_MESSAGES`, `LANG`, then
+English. A region suffix is stripped, so `de_DE.UTF-8` finds `de.lang`.
+
+### Adding a language
+
+1. Copy `en.lang` to `<code>.lang`, e.g. `pt.lang`
+2. Translate the text to the right of each `=`
+3. Add a display name for it to *every* shipped file
+   (`gui.language.pt = Português`), because the picker shows all languages
+   at once, whichever one is active
+4. Select it: `OSG_LANG=pt osg-config`
+
+Keys you have not translated fall back to English individually, so a partial
+translation is usable from the first line. That fallback is a safety net for
+a translation in progress, not a plan for a shipped one — a window answering
+half in one language and half in another is worse than either.
+
+Log messages are deliberately not translated — they stay English so that bug
+reports remain readable.
+
+---
+
 ## 11. Calibration
 
-Calibration improves gaze accuracy through polynomial correction.
+Calibration improves gaze accuracy by fitting a polynomial that maps where
+the tracker thinks you are looking onto where you actually looked.
 
 ### Starting Calibration
 
-The daemon must be running:
+The daemon must be running — it owns the eye tracker and collects the
+samples, while the GUI shows the dots and paces the run.
 
 ```bash
-# Via GUI: osg-config → Calibration
-# Or via wizard:
-osg-setup  # select step 6
+# Via GUI: osg-config → Gaze Calibration → Calibrate
+# Or from the wizard:
+osg-setup  # step 6
 ```
+
+Look at each dot until it disappears. Five or nine points are supported;
+five is enough for most setups. Afterwards the per-point error is shown as
+coloured circles — green is good, red means that point should be repeated.
+
+- **Enter** accepts the result. It is written to `config.toml` and applied
+  to every gaze sample from that moment on; no restart needed.
+- **ESC** cancels. The previously stored calibration stays untouched.
+
+### When a run is rejected
+
+Not every run produces a usable mapping, and a broken one is worse than
+none — left alone it silently overwrites a possibly better previous one. A
+run therefore has to clear three bars, or it is discarded and the stored
+calibration stays untouched:
+
+- **Samples per point.** A point that delivers less than 60% of the
+  configured `samples_per_point` is left out of the fit. Its mean would be
+  mostly noise and would pull the curve away from every other point. If
+  fewer than three usable points remain, the run fails.
+- **Deviation.** At most 0.06 on average and no more than 0.10 of the
+  screen at any single point — two bars, because one ruined point
+  disappears in the average of four good ones. On a 5120 px wide screen
+  0.10 is roughly 500 px.
+- **Reachable range.** Across the whole raw range the mapping must still
+  cover at least half of the calibrated range. A fit that squeezes
+  everything into a narrow band makes parts of the screen unreachable.
+
+The result screen shows how many samples arrived at each point and how far
+it is off; dropped points appear as an open red ring. If the run is
+rejected, the screen names the reason and shows the same per-point numbers.
+The usual cause is a point where the tracker lost your gaze — check your
+seating distance and calibrate again.
+
+### How it is stored
+
+```toml
+[calibration]
+polynomial_degree = 2
+samples_per_point = 30
+settle_delay_s = 1.0
+min_collect_seconds = 3.0
+aspect_ratio = "auto"
+coeff_x = [...]
+coeff_y = [...]
+```
+
+| Setting | Meaning |
+|---------|---------|
+| `polynomial_degree` | Degree of the fit per axis. 2 is a good default; higher degrees overfit five points. |
+| `samples_per_point` | Minimum gaze samples per dot. At ~33 Hz, 30 samples take about a second — but the duration is set by `min_collect_seconds`, not by this number. |
+| `settle_delay_s` | Pause after the dot appears, before anything is recorded. The dot is already visible: this is the time to look at it. |
+| `min_collect_seconds` | Minimum length of the recording itself. Together with `settle_delay_s` every dot stands for four seconds by default. Samples arriving during the extra time are kept. |
+| `aspect_ratio` | Screen shape the dots are spread over. `"auto"` takes the monitor the GUI runs on; `"32:9"` or a plain number overrides it. |
+
+### Where the dots are placed
+
+On 16:9 the dots sit at 10% and 90% of the screen. On a wider screen the
+same fractions push the outer dots much further apart in angle, into the
+region where the tracker sees fewest glints and gets least reliable. The
+horizontal margin therefore grows with the aspect ratio, capped at the 21:9
+value — so 32:9 is calibrated like 21:9, with dots at 19.5% and 80.5%.
+Vertical placement never changes. Set `aspect_ratio` by hand if your
+monitor is detected wrongly, e.g. on a spanned multi-monitor desktop.
 
 ### Resetting Calibration
 
 ```bash
-# Edit config.toml:
-nano ~/.config/openstargazer/config.toml
-
-# Change lines:
+# Edit config.toml and empty both coefficient lists:
 coeff_x = []
 coeff_y = []
 ```
+
+Empty lists mean "no correction" — the raw gaze point is passed through.
 
 ---
 
 ## 12. Profiles
 
-Profiles allow quick switching between configurations (e.g. Star Citizen vs. desktop use).
+A profile is a named copy of the whole configuration — calibration, curves,
+output, input source, everything in `config.toml`. They exist so one setup
+can be kept for Star Citizen and another for desktop use without editing
+anything by hand.
 
-Manage profiles via `osg-config` or the IPC API.
+They live as individual files:
+
+```
+~/.config/openstargazer/profiles/<name>.toml
+```
+
+From the profile menu in the settings window's header:
+
+| Action | What it does |
+|--------|--------------|
+| **Save current settings** | Writes everything as it stands right now under a name. An existing name is overwritten. |
+| Pick a name from the list | Loads that profile and makes it the live configuration |
+| **Manage profiles** | The same, plus rename and delete |
+
+The header button shows which profile is in force. That is a stored label
+(`[general] active_profile`) rather than something inferred: a profile that
+has been activated is otherwise indistinguishable from one that was never
+used, because activating it copies its contents into `config.toml`.
+
+Deleting asks first — a profile can represent a calibration run — and
+deleting the active one clears the label rather than leaving it pointing at
+a file that is gone.
+
+Profiles are also reachable over the IPC interface (`list_profiles`,
+`activate_profile`).
 
 ---
 
@@ -931,7 +1330,7 @@ The installer handles this automatically with a venv. For manual installation:
 
 ```bash
 python3 -m venv --system-site-packages ~/.local/share/openstargazer/venv
-~/.local/share/openstargazer/venv/bin/pip install -e ".[tray]"
+~/.local/share/openstargazer/venv/bin/pip install ".[tray]"
 ```
 
 ---
@@ -948,11 +1347,11 @@ python3 -m venv --system-site-packages ~/.local/share/openstargazer/venv
 
 ### Problem: Tracker jumps or jitters
 
-**Solution: adjust filter**
+**Solution: adjust filter** — smoother at rest, at the price of about 100 ms more delay:
 ```toml
 [filter]
-one_euro_min_cutoff = 0.3
-one_euro_beta = 0.003
+one_euro_min_cutoff = 1.0
+one_euro_beta = 0.05
 ```
 
 Or increase deadzone:
@@ -967,9 +1366,11 @@ gaze_deadzone_px = 50.0
 **Solution: make filter more responsive**
 ```toml
 [filter]
-one_euro_min_cutoff = 1.0
-one_euro_beta = 0.02
+one_euro_min_cutoff = 3.0
+one_euro_beta = 0.15
 ```
+
+Beyond roughly these values the filter is no longer what you are feeling: one camera frame lasts 30 ms, and OpenTrack plus the game add their own delay.
 
 Also: set OpenTrack filter to **none**.
 
@@ -1046,7 +1447,7 @@ A: Currently the daemon connects to the first found device. Use `preferred_url` 
 ```bash
 cd ~/openstargazer
 git pull
-pip install --user -e ".[tray]"   # or venv-pip
+pip install --user ".[tray]"   # or venv-pip
 systemctl --user restart openstargazer
 ```
 

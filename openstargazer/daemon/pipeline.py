@@ -1,14 +1,5 @@
-"""
-DataPipeline – processes TrackingFrame objects from the tracker and
-fans out filtered/scaled data to all active output plugins.
-
-Processing chain per frame:
-  1. OneEuro filter  (per axis, reduces jitter)
-  2. Dead-zone       (gaze stability)
-  3. Bezier curve mapping (per axis, configurable response curves)
-  4. Axis scaling + invert
-  5. Fan-out to OutputPlugin list
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import asyncio
@@ -16,6 +7,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from openstargazer.daemon.calibration import apply_polynomial
 from openstargazer.engine.api import TrackingFrame
 from openstargazer.output.base import OutputPlugin
 
@@ -26,14 +18,10 @@ log = logging.getLogger(__name__)
 
 _AXES = ("yaw", "pitch", "roll", "x", "y", "z")
 
+_GAZE_AXES = ("gaze_x", "gaze_y")
+
 
 class DataPipeline:
-    """
-    Connects tracker output → filters → outputs.
-
-    Instantiate once, call ``process(frame)`` for every incoming frame.
-    """
-
     def __init__(self, settings: "Settings") -> None:
         self._settings = settings
         self._outputs: list[OutputPlugin] = []
@@ -43,10 +31,13 @@ class DataPipeline:
         self._frame_count = 0
         self._last_fps_ts = time.monotonic()
         self._fps = 0.0
+        self._last_processed: TrackingFrame | None = None
+        self._last_unshifted: dict[str, float] | None = None
+        self._last_gaze: tuple[float, float] = (0.5, 0.5)
+        self._last_rotation: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        self._last_position: tuple[float, float, float] = (0.0, 0.0, 600.0)
         self._reload_config()
 
-    # ------------------------------------------------------------------
-    # Configuration
 
     def _reload_config(self) -> None:
         from openstargazer.filters.one_euro import OneEuroFilter
@@ -58,28 +49,37 @@ class DataPipeline:
                 min_cutoff=cfg.filter.one_euro_min_cutoff,
                 beta=cfg.filter.one_euro_beta,
             )
-        self._deadzone = DeadzoneFilter(cfg.filter.gaze_deadzone_px)
+        for axis in _GAZE_AXES:
+            self._filters[axis] = OneEuroFilter(
+                min_cutoff=cfg.filter.gaze_min_cutoff,
+                beta=cfg.filter.gaze_beta,
+            )
+        screen_w = screen_h = None
+        if cfg.display.configured:
+            screen_w = cfg.display.screen_width_px
+            screen_h = cfg.display.screen_height_px
+        self._deadzone = DeadzoneFilter(cfg.filter.gaze_deadzone_px,
+                                        screen_w, screen_h)
+        self._calib_coeff_x = list(cfg.calibration.coeff_x)
+        self._calib_coeff_y = list(cfg.calibration.coeff_y)
         self._rebuild_luts()
 
     def _rebuild_luts(self) -> None:
-        """Pre-compute curve lookup tables for each axis."""
         for axis in _AXES:
             axis_cfg = getattr(self._settings.axes, axis, None)
             if axis_cfg and axis_cfg.curve:
                 self._luts[axis] = axis_cfg.curve
             else:
-                self._luts[axis] = [(0.0, 0.0), (1.0, 1.0)]  # linear
+                self._luts[axis] = [(0.0, 0.0), (1.0, 1.0)]
 
     def update_settings(self, settings: "Settings") -> None:
         self._settings = settings
         self._reload_config()
 
     async def rebuild_outputs(self, settings: "Settings") -> None:
-        """Stop current output plugins, rebuild from settings, and restart."""
         self._settings = settings
         self._reload_config()
 
-        # Stop existing outputs
         for plugin in self._outputs:
             try:
                 await plugin.stop()
@@ -88,22 +88,10 @@ class DataPipeline:
 
         self._outputs.clear()
 
-        # Rebuild from current settings
-        from openstargazer.output.opentrack_udp import OpenTrackUDPOutput
-        from openstargazer.output.freetrack_shm import FreeTrackSHMOutput
+        from openstargazer.output.registry import create_outputs
 
-        if settings.output.opentrack_udp.enabled:
-            udp = OpenTrackUDPOutput(
-                host=settings.output.opentrack_udp.host,
-                port=settings.output.opentrack_udp.port,
-            )
-            self._outputs.append(udp)
+        self._outputs.extend(create_outputs(settings.output.targets))
 
-        if settings.output.freetrack_shm.enabled:
-            shm = FreeTrackSHMOutput()
-            self._outputs.append(shm)
-
-        # Start new outputs if pipeline is running
         if self._running:
             for plugin in self._outputs:
                 try:
@@ -112,8 +100,6 @@ class DataPipeline:
                     log.exception("Error starting output plugin %s", plugin.name)
             log.info("Output plugins rebuilt: %d active", len(self._outputs))
 
-    # ------------------------------------------------------------------
-    # Output management
 
     def add_output(self, plugin: OutputPlugin) -> None:
         self._outputs.append(plugin)
@@ -125,8 +111,32 @@ class DataPipeline:
     def fps(self) -> float:
         return self._fps
 
-    # ------------------------------------------------------------------
-    # Processing
+    @property
+    def latest_processed(self) -> "TrackingFrame | None":
+        return self._last_processed
+
+
+    def recenter(self) -> dict[str, float] | None:
+        if self._last_unshifted is None:
+            return None
+
+        neutral = self._settings.neutral
+        for axis, value in self._last_unshifted.items():
+            setattr(neutral, axis, value)
+        neutral.enabled = True
+        log.info(
+            "Recentered: yaw=%.2f roll=%.2f x=%.1f y=%.1f z=%.1f",
+            neutral.yaw, neutral.roll, neutral.x, neutral.y, neutral.z,
+        )
+        return dict(self._last_unshifted)
+
+    def clear_recenter(self) -> None:
+        neutral = self._settings.neutral
+        neutral.enabled = False
+        for axis in _AXES:
+            setattr(neutral, axis, 0.0)
+        log.info("Neutral pose cleared")
+
 
     async def process(self, frame: TrackingFrame) -> None:
         if not self._running:
@@ -134,25 +144,55 @@ class DataPipeline:
 
         cfg = self._settings
 
-        # 1. OneEuro filter
-        ts = frame.timestamp_us / 1_000_000  # seconds
+        ts = frame.timestamp_us / 1_000_000
 
         def filt(axis: str, value: float) -> float:
             return self._filters[axis].filter(value, ts)
 
-        yaw   = filt("yaw",   frame.yaw)
-        pitch = filt("pitch", frame.pitch)
-        roll  = filt("roll",  frame.roll)
-        hx    = filt("x",     frame.head_x)
-        hy    = filt("y",     frame.head_y)
-        hz    = filt("z",     frame.head_z)
+        if frame.head_rot_valid:
+            yaw   = filt("yaw",   frame.yaw)
+            pitch = filt("pitch", frame.pitch)
+            roll  = filt("roll",  frame.roll)
+            self._last_rotation = (yaw, pitch, roll)
+        else:
+            yaw, pitch, roll = self._last_rotation
 
-        # 2. Gaze dead-zone (applied in-place on gaze, not head pose)
-        gx, gy = self._deadzone.apply(frame.gaze_x, frame.gaze_y)
+        if frame.head_pos_valid:
+            hx = filt("x", frame.head_x)
+            hy = filt("y", frame.head_y)
+            hz = filt("z", frame.head_z)
+            self._last_position = (hx, hy, hz)
+        else:
+            hx, hy, hz = self._last_position
 
-        # 3. Curve mapping
+        if frame.gaze_valid:
+            gx = filt("gaze_x", frame.gaze_x)
+            gy = filt("gaze_y", frame.gaze_y)
+
+            gx, gy = apply_polynomial(
+                self._calib_coeff_x, self._calib_coeff_y, gx, gy
+            )
+            gx, gy = self._deadzone.apply(gx, gy)
+            self._last_gaze = (gx, gy)
+        else:
+            gx, gy = self._last_gaze
+
+        if frame.head_pos_valid or frame.head_rot_valid:
+            self._last_unshifted = {
+                "yaw": yaw, "pitch": pitch, "roll": roll,
+                "x": hx, "y": hy, "z": hz,
+            }
+
+        neutral = self._settings.neutral
+        if neutral.enabled:
+            yaw   -= neutral.yaw
+            pitch -= neutral.pitch
+            roll  -= neutral.roll
+            hx    -= neutral.x
+            hy    -= neutral.y
+            hz    -= neutral.z
+
         def curve(axis: str, value: float, lo: float = -1.0, hi: float = 1.0) -> float:
-            # Normalise to [0,1], apply LUT, de-normalise
             norm = (value - lo) / (hi - lo) if hi != lo else 0.5
             norm = max(0.0, min(1.0, norm))
             mapped = _lut_lookup(self._luts[axis], norm)
@@ -162,7 +202,6 @@ class DataPipeline:
         pitch = curve("pitch", pitch, -90,  90)
         roll  = curve("roll",  roll,  -90,  90)
 
-        # 4. Scale + invert
         def scale(axis: str, value: float) -> float:
             ax = getattr(cfg.axes, axis, None)
             if ax is None:
@@ -183,16 +222,17 @@ class DataPipeline:
             roll=scale("roll", roll),
             head_rot_valid=frame.head_rot_valid,
             timestamp_us=frame.timestamp_us,
+            head_pos_from_one_eye=frame.head_pos_from_one_eye,
         )
 
-        # 5. Fan-out
+        self._last_processed = filtered
+
         for plugin in self._outputs:
             try:
                 await plugin.send(filtered)
             except Exception:
                 log.exception("Output plugin %s raised exception", plugin.name)
 
-        # FPS tracking
         self._frame_count += 1
         now = time.monotonic()
         elapsed = now - self._last_fps_ts
@@ -209,17 +249,13 @@ class DataPipeline:
 
     async def stop(self) -> None:
         self._running = False
+        self._last_processed = None
         for plugin in self._outputs:
             await plugin.stop()
         log.info("DataPipeline stopped")
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 def _lut_lookup(lut: list[tuple[float, float]], x: float) -> float:
-    """Linear interpolation on a sorted list of (x, y) control points."""
     if not lut:
         return x
     if x <= lut[0][0]:

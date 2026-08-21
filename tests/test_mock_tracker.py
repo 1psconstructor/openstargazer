@@ -1,7 +1,5 @@
-"""
-Unit tests for MockTrackerManager – verifies synthetic data generation
-and consumer dispatch without physical hardware.
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 import asyncio
 import pytest
 
@@ -11,7 +9,6 @@ from openstargazer.engine.api import TrackingFrame
 
 @pytest.mark.asyncio
 async def test_mock_tracker_starts_and_stops():
-    """MockTracker starts without errors and stops cleanly."""
     mgr = MockTrackerManager()
     await mgr.start()
     assert mgr.is_connected is True
@@ -22,7 +19,6 @@ async def test_mock_tracker_starts_and_stops():
 
 @pytest.mark.asyncio
 async def test_mock_tracker_dispatches_frames():
-    """Consumer callback receives TrackingFrame objects."""
     mgr = MockTrackerManager()
     frames: list[TrackingFrame] = []
 
@@ -31,7 +27,7 @@ async def test_mock_tracker_dispatches_frames():
 
     mgr.add_consumer(consumer)
     await mgr.start()
-    await asyncio.sleep(0.15)  # Let ~10+ frames at 90Hz
+    await asyncio.sleep(0.15)
     await mgr.stop()
 
     assert len(frames) > 5
@@ -45,7 +41,6 @@ async def test_mock_tracker_dispatches_frames():
 
 @pytest.mark.asyncio
 async def test_mock_tracker_fps():
-    """MockTracker should report a reasonable FPS (>30 Hz)."""
     mgr = MockTrackerManager()
     await mgr.start()
     await asyncio.sleep(0.2)
@@ -56,7 +51,6 @@ async def test_mock_tracker_fps():
 
 @pytest.mark.asyncio
 async def test_mock_tracker_latest_frame():
-    """latest_frame should be updated while running."""
     mgr = MockTrackerManager()
     await mgr.start()
     await asyncio.sleep(0.1)

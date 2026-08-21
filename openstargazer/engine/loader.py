@@ -1,12 +1,5 @@
-"""
-Loads libtobii_stream_engine.so and binds all required C functions.
-
-Search order for the .so:
-  1. OSG_STREAM_ENGINE_PATH environment variable
-  2. ~/.local/share/openstargazer/lib/
-  3. /usr/local/lib/
-  4. LD_LIBRARY_PATH (ctypes default)
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import ctypes
@@ -19,7 +12,6 @@ from openstargazer.engine.api import TobiiGazePoint, TobiiHeadPose, TobiiGazeDat
 
 log = logging.getLogger(__name__)
 
-# Callback function types
 GazePointCallback = ctypes.CFUNCTYPE(None, ctypes.POINTER(TobiiGazePoint), ctypes.c_void_p)
 HeadPoseCallback  = ctypes.CFUNCTYPE(None, ctypes.POINTER(TobiiHeadPose),  ctypes.c_void_p)
 GazeDataCallback  = ctypes.CFUNCTYPE(None, ctypes.POINTER(TobiiGazeData),  ctypes.c_void_p)
@@ -39,106 +31,83 @@ class StreamEngineError(RuntimeError):
 
 
 class StreamEngineLib:
-    """Thin wrapper around the Tobii Stream Engine shared library."""
-
     def __init__(self, lib: ctypes.CDLL) -> None:
         self._lib = lib
         self._bind_functions()
 
-    # ------------------------------------------------------------------
-    # Internal
 
     def _bind_functions(self) -> None:
         L = self._lib
 
-        # tobii_api_create
         L.tobii_api_create.restype  = ctypes.c_int
         L.tobii_api_create.argtypes = [
-            ctypes.POINTER(ctypes.c_void_p),   # tobii_api_t**
-            LogCallback,                        # log_func (nullable)
-            ctypes.c_void_p,                    # user_data
+            ctypes.POINTER(ctypes.c_void_p),
+            LogCallback,
+            ctypes.c_void_p,
         ]
 
-        # tobii_api_destroy
         L.tobii_api_destroy.restype  = ctypes.c_int
         L.tobii_api_destroy.argtypes = [ctypes.c_void_p]
 
-        # tobii_enumerate_local_device_urls
         L.tobii_enumerate_local_device_urls.restype  = ctypes.c_int
         L.tobii_enumerate_local_device_urls.argtypes = [
-            ctypes.c_void_p,   # tobii_api_t*
+            ctypes.c_void_p,
             DeviceUrlReceiver,
             ctypes.c_void_p,
         ]
 
-        # tobii_device_create
-        # NOTE: actual binary argument order differs from SDK documentation!
-        # SDK docs say: (api*, url, field_of_use, device**)
-        # Binary ABI:   (api*, url, device**, field_of_use)   ← use this order
         L.tobii_device_create.restype  = ctypes.c_int
         L.tobii_device_create.argtypes = [
-            ctypes.c_void_p,                    # tobii_api_t*
-            ctypes.c_char_p,                    # url
-            ctypes.POINTER(ctypes.c_void_p),    # device** BEFORE field_of_use
-            ctypes.c_int,                        # tobii_field_of_use_t
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_int,
         ]
 
-        # tobii_device_destroy
         L.tobii_device_destroy.restype  = ctypes.c_int
         L.tobii_device_destroy.argtypes = [ctypes.c_void_p]
 
-        # tobii_gaze_point_subscribe
         L.tobii_gaze_point_subscribe.restype  = ctypes.c_int
         L.tobii_gaze_point_subscribe.argtypes = [
             ctypes.c_void_p, GazePointCallback, ctypes.c_void_p,
         ]
 
-        # tobii_gaze_point_unsubscribe
         L.tobii_gaze_point_unsubscribe.restype  = ctypes.c_int
         L.tobii_gaze_point_unsubscribe.argtypes = [ctypes.c_void_p]
 
-        # tobii_head_pose_subscribe
         L.tobii_head_pose_subscribe.restype  = ctypes.c_int
         L.tobii_head_pose_subscribe.argtypes = [
             ctypes.c_void_p, HeadPoseCallback, ctypes.c_void_p,
         ]
 
-        # tobii_head_pose_unsubscribe
         L.tobii_head_pose_unsubscribe.restype  = ctypes.c_int
         L.tobii_head_pose_unsubscribe.argtypes = [ctypes.c_void_p]
 
-        # tobii_wait_for_callbacks
         L.tobii_wait_for_callbacks.restype  = ctypes.c_int
         L.tobii_wait_for_callbacks.argtypes = [
-            ctypes.c_int,              # device_count
-            ctypes.POINTER(ctypes.c_void_p),  # devices
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_void_p),
         ]
 
-        # tobii_device_process_callbacks
         L.tobii_device_process_callbacks.restype  = ctypes.c_int
         L.tobii_device_process_callbacks.argtypes = [ctypes.c_void_p]
 
-        # tobii_gaze_data_subscribe
         try:
             L.tobii_gaze_data_subscribe.restype  = ctypes.c_int
             L.tobii_gaze_data_subscribe.argtypes = [
                 ctypes.c_void_p, GazeDataCallback, ctypes.c_void_p,
             ]
-            # tobii_gaze_data_unsubscribe
             L.tobii_gaze_data_unsubscribe.restype  = ctypes.c_int
             L.tobii_gaze_data_unsubscribe.argtypes = [ctypes.c_void_p]
         except AttributeError:
-            pass  # not all builds expose gaze_data stream
+            pass
 
-        # tobii_get_api_version
         try:
             L.tobii_get_api_version.restype  = ctypes.c_int
             L.tobii_get_api_version.argtypes = [ctypes.POINTER(ctypes.c_int * 4)]
         except AttributeError:
-            pass  # older builds may not have this
+            pass
 
-    # ------------------------------------------------------------------
-    # Public API
 
     def api_create(self) -> ctypes.c_void_p:
         api_ptr = ctypes.c_void_p()
@@ -219,7 +188,6 @@ class StreamEngineLib:
 
 
 def load_stream_engine() -> StreamEngineLib:
-    """Find and load libtobii_stream_engine.so, return bound wrapper."""
     for path in _SEARCH_PATHS:
         if path is None or not path.exists():
             continue
@@ -230,7 +198,6 @@ def load_stream_engine() -> StreamEngineLib:
         except OSError as exc:
             log.debug("Could not load %s: %s", path, exc)
 
-    # Last resort: let the linker try
     name = ctypes.util.find_library("tobii_stream_engine")
     if name:
         try:

@@ -1,10 +1,5 @@
-"""
-Thread-safe C→Python callback bridge.
-
-The Stream Engine calls C callbacks from a dedicated tracking thread.
-We push lightweight events into thread-safe queues that the asyncio
-event loop drains from the main thread.
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import asyncio
@@ -21,33 +16,15 @@ log = logging.getLogger(__name__)
 
 
 class CallbackBridge:
-    """
-    Creates ctypes callback objects and exposes thread-safe queues.
-
-    Usage::
-
-        bridge = CallbackBridge(loop)
-        lib.subscribe_gaze(dev, bridge.gaze_cb)
-        lib.subscribe_head_pose(dev, bridge.head_pose_cb)
-
-        # In async code:
-        gaze = await bridge.gaze_queue.get()
-        pose = await bridge.head_pose_queue.get()
-    """
-
     def __init__(self, loop: asyncio.AbstractEventLoop, maxsize: int = 64) -> None:
         self._loop = loop
-        # Thread-safe Python queues bridging C-thread → asyncio
         self._gaze_q: queue.Queue = queue.Queue(maxsize=maxsize)
         self._head_q: queue.Queue = queue.Queue(maxsize=maxsize)
 
-        # Keep ctypes function objects alive (GC protection)
         self._gaze_cb_ref      = GazePointCallback(self._gaze_callback)
         self._head_cb_ref      = HeadPoseCallback(self._head_callback)
         self._gaze_data_cb_ref = GazeDataCallback(self._gaze_data_callback)
 
-    # ------------------------------------------------------------------
-    # C callback implementations (called from tracking thread)
 
     def _gaze_callback(self, gaze_ptr: ctypes.POINTER(TobiiGazePoint),
                        _user: ctypes.c_void_p) -> None:
@@ -62,7 +39,7 @@ class CallbackBridge:
             try:
                 self._gaze_q.put_nowait(data)
             except queue.Full:
-                pass  # drop oldest sample rather than blocking tracking thread
+                pass
         except Exception:
             log.exception("Error in gaze callback")
 
@@ -112,8 +89,6 @@ class CallbackBridge:
         except Exception:
             log.exception("Error in head pose callback")
 
-    # ------------------------------------------------------------------
-    # Public
 
     @property
     def gaze_cb(self) -> GazePointCallback:
@@ -128,7 +103,6 @@ class CallbackBridge:
         return self._gaze_data_cb_ref
 
     def drain_gaze(self) -> list[dict]:
-        """Non-blocking: return all pending gaze samples."""
         items = []
         while True:
             try:
@@ -138,7 +112,6 @@ class CallbackBridge:
         return items
 
     def drain_head(self) -> list[dict]:
-        """Non-blocking: return all pending head-pose samples."""
         items = []
         while True:
             try:
@@ -148,7 +121,6 @@ class CallbackBridge:
         return items
 
     def latest_gaze(self) -> dict | None:
-        """Return only the most recent gaze sample, discard older ones."""
         last = None
         while True:
             try:
@@ -158,7 +130,6 @@ class CallbackBridge:
         return last
 
     def latest_head(self) -> dict | None:
-        """Return only the most recent head-pose sample, discard older ones."""
         last = None
         while True:
             try:

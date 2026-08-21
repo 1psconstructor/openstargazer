@@ -1,0 +1,535 @@
+# openstargazer language file -- English (reference)
+#
+# Format:  key = value        Everything after the first "=" is the text.
+#          # ...              Comment line.
+#          {name}             Placeholder, filled in at runtime. Keep the
+#                             spelling exactly as it appears here.
+#
+# To add a language: copy this file to <code>.lang (e.g. fr.lang), translate
+# the values on the right of the "=", and select it with OSG_LANG=fr or by
+# setting your system locale. Keys that are missing in a translation fall
+# back to this file, so a partial translation is fine.
+#
+# Log messages are intentionally not listed here -- they stay English so bug
+# reports stay readable.
+
+# ---------------------------------------------------------------------------
+# Shared
+# ---------------------------------------------------------------------------
+common.cancelled = Cancelled.
+common.yes = yes
+common.no = no
+
+# ---------------------------------------------------------------------------
+# Installer (scripts/install.sh)
+# ---------------------------------------------------------------------------
+install.title = openstargazer Setup
+install.menu.fresh = Fresh installation
+install.menu.repair = Repair (reinstall missing components)
+install.menu.uninstall_full = Uninstall -- everything
+install.menu.uninstall_custom = Uninstall -- pick components
+install.menu.quit = Quit
+install.menu.debug = Create debug report
+install.menu.prompt = Selection [1-6]:
+install.quit = Done.
+install.invalid_choice = Invalid selection: {choice}
+install.daemon_started = openstargazer daemon started
+install.daemon_start_failed = Could not start the daemon right away -- start it manually: systemctl --user start openstargazer
+
+backend.chosen = Backend: {backend}
+
+summary.title = Summary
+summary.ok = OK:
+summary.skipped = Skipped:
+summary.failed = Failed:
+
+next.start_daemon = Start daemon
+next.open_gui = Open GUI
+next.setup_again = Run setup again
+next.reboot = A full reboot is recommended to apply the udev rule and the plugdev group membership
+
+uninstall.full.title = FULL UNINSTALL
+uninstall.full.warning = This will remove ALL openstargazer components from this system.
+uninstall.full.confirm = Continue with full uninstall?
+uninstall.custom.title = Custom uninstall -- select components to remove:
+uninstall.custom.hint = Enter component numbers to remove (comma or space separated), or 'q' to cancel.
+uninstall.custom.example = Example: 1,3,5
+uninstall.custom.selection = Selection:
+uninstall.custom.invalid = Ignoring invalid selection: {token}
+uninstall.custom.nothing = Nothing selected.
+uninstall.custom.to_remove = Components to remove:
+uninstall.custom.proceed = Proceed?
+uninstall.status.installed = installed
+uninstall.status.not_found = not found
+uninstall.status.exists = exists
+
+# ---------------------------------------------------------------------------
+# Setup wizard (osg-setup)
+# ---------------------------------------------------------------------------
+wizard.banner.title = openstargazer Setup Wizard
+wizard.banner.subtitle = Tobii Eye Tracker 5 for Star Citizen
+
+wizard.step1.header = Step 1 - Tracking backend
+wizard.step1.native = Native backend active -- no additional binaries needed.
+wizard.step1.native_weights = Head-pose weights (GPL-3.0) are included -- no third-party download needed.
+wizard.step1.se_installed = Stream Engine already installed
+wizard.step1.se_missing = Tobii Stream Engine binaries not found.
+wizard.step1.se_location = Expected location: {path}
+wizard.step1.se_fetch = Download them now with fetch-stream-engine.sh?
+wizard.step1.se_script_missing = Script not found: {path}
+wizard.step1.se_run_manually = Please run it manually.
+wizard.step1.se_failed = Fetch script failed. See the output above.
+wizard.step1.se_done = Stream Engine installed
+wizard.step1.se_skipped = Skipped -- you will have to install it manually.
+wizard.camera.header = Extended head tracking (optional)
+wizard.camera.why = The gaze stream carries no head rotation: measured across all 39 device fields, not one of them turns with the head. The device's own infrared camera does, and the weights that read it ship with the project.
+wizard.camera.with = With it:     yaw and pitch, on top of position, roll and gaze
+wizard.camera.cost = It costs:    onnxruntime as an extra package (a few hundred MB installed) and about 6 ms per picture -- a fifth of one core at 33 Hz
+wizard.camera.privacy = Pictures:   read, measured and dropped. Nothing is stored, nothing leaves the machine.
+wizard.camera.without = Without it:  position, roll and gaze, exactly as before
+wizard.camera.question = Turn extended head tracking on?
+wizard.camera.no_runtime = onnxruntime is not installed: pip install 'openstargazer[camera]'
+wizard.camera.no_weights = The head-pose weights were not found; see docs/head-pose-model.md
+wizard.camera.on = Extended head tracking is on -- yaw, pitch and roll
+wizard.camera.on_but_incomplete = Turned on, but it cannot start yet -- see the warning above
+wizard.camera.off = Extended head tracking stays off
+wizard.camera.changeable = You can change this any time in the settings window.
+
+wizard.step2.header = Step 2 - Detect ET5 hardware
+wizard.step2.found = Found Tobii Eye Tracker 5: {line}
+wizard.step2.not_found = No Tobii Eye Tracker 5 detected on USB.
+wizard.step2.plugged_in = Is the device plugged in?
+wizard.step2.continue_anyway = Continue anyway?
+wizard.step2.no_lsusb = lsusb not available -- skipping the USB check
+wizard.step2.check_failed = USB check failed: {error}
+
+wizard.step3.header = Step 3 - Detect LUG-Helper / Star Citizen installation
+wizard.step3.found = LUG-Helper installation found
+wizard.step3.wine_prefix = Wine prefix
+wizard.step3.runner = Runner
+wizard.step3.esync_fsync = ESYNC/FSYNC
+wizard.step3.proton_type = Proton type
+wizard.step3.not_found_value = (not found)
+wizard.step3.use_settings = Use these settings?
+wizard.step3.none = No LUG-Helper configuration found automatically.
+wizard.step3.manual = Enter the paths manually?
+wizard.step3.ask_prefix = Wine prefix path
+wizard.step3.ask_runner = Wine binary path (wine or proton)
+wizard.step3.ask_esync = Enable ESYNC?
+wizard.step3.ask_fsync = Enable FSYNC?
+
+wizard.step4.header = Step 4 - Configure OpenTrack
+wizard.step4.ask_port = UDP port for osg-daemon to OpenTrack
+wizard.step4.bad_port = Not a valid port number, using {port}
+wizard.step4.installed = OpenTrack profile installed: {path}
+wizard.step4.failed = Could not install the OpenTrack profile: {error}
+
+wizard.step5.header = Step 5 - Star Citizen in-game settings
+wizard.step5.intro = In Star Citizen:
+wizard.step5.item1 = 1. Open Settings -> COMMS, FOIP & HEAD TRACKING
+wizard.step5.item2 = 2. Set Head Tracking Source to TrackIR
+wizard.step5.item3 = 3. Enable head tracking
+wizard.step5.order = Start order (important):
+wizard.step5.order1 = a) Start Star Citizen
+wizard.step5.order2 = b) Start OpenTrack (profile: tobii5-starcitizen)
+wizard.step5.order3 = c) Head tracking becomes active within a few seconds
+wizard.step5.continue = Press Enter to continue...
+
+wizard.step6.header = Step 6 - Gaze calibration (optional)
+wizard.step6.intro = Calibration improves gaze accuracy for the curves editor.
+wizard.step6.run_now = Run calibration now?
+wizard.step6.starting = Starting calibration (osg-daemon has to be running)...
+wizard.step6.started = Calibration session started in the daemon.
+wizard.step6.failed = Could not start calibration: {error}
+wizard.step6.daemon_hint = Start the daemon first: systemctl --user start openstargazer
+
+wizard.service.header = Install systemd user service & udev rules
+wizard.service.ask_install = Install the systemd user service?
+wizard.service.installed = Installed: {path}
+wizard.service.reloaded = systemctl --user daemon-reload done
+wizard.service.ask_enable = Start the service automatically on login?
+wizard.service.enabled = Service enabled
+wizard.service.skipped = Skipped the systemd service
+wizard.service.missing = Service file not found: {path}
+wizard.service.daemon_path = Service will start: {path}
+wizard.service.no_daemon = Cannot find an osg-daemon to start — service not installed. Install openstargazer first, then run osg-setup again.
+wizard.service.running = Service started and still running
+wizard.service.not_running = Service did not stay running. It is installed but will not work until this is fixed:
+wizard.udev.ask_install = Install the udev rules (needs sudo)?
+wizard.udev.installed = Installed: {path}
+wizard.udev.failed = Could not install the udev rules (sudo required)
+wizard.udev.skipped = Skipped the udev rules
+wizard.udev.missing = udev rules not found: {path}
+wizard.udev.replug = Unplug and replug the eye tracker so the rule takes effect.
+
+wizard.done.header = Setup complete
+wizard.done.backend = Backend
+wizard.done.tracking = Head tracking
+wizard.done.with_camera = ✓ six axes (device camera)
+wizard.done.plain = position, roll and gaze
+wizard.done.hardware = Hardware
+wizard.done.opentrack = OpenTrack
+wizard.done.no_device = no device detected
+wizard.done.manual_config = configure manually
+wizard.done.start_daemon = Start the daemon:
+wizard.done.open_gui = Open the GUI:
+wizard.done.no_lug = Could not determine the Wine prefix.
+wizard.done.no_lug_hint = The OpenTrack profile will not be configured automatically.
+wizard.done.no_lug_rerun = Run 'osg-setup' again once LUG-Helper is set up.
+wizard.donate.question = Did openstargazer save you some headache?
+wizard.donate.hint = Consider buying the dev a coffee:
+
+# ---------------------------------------------------------------------------
+# GUI (osg-config)
+# ---------------------------------------------------------------------------
+gui.profile.tooltip = Active profile
+gui.donate.tooltip = Buy the dev a coffee - ko-fi.com/1psconstructor
+gui.setup.button = Star Citizen Setup
+
+gui.status.connecting = Connecting...
+gui.status.connected = Connected
+gui.status.disconnected = Disconnected
+gui.status.daemon_not_running = Daemon not running
+
+gui.preview.title = Live preview
+
+gui.device.group = Device
+gui.device.tobii = Tobii Eye Tracker 5
+gui.device.tracking_on = Tracking active - LEDs on
+gui.device.tracking_off = Paused - LEDs off
+gui.device.camera = Extended head tracking
+gui.device.camera_subtitle = Turn and tilt from the device's own camera - about 6 ms per picture
+gui.device.camera_restart = Stored - it takes effect when the daemon restarts
+gui.device.camera_restart_manual = Stored - restart the daemon yourself; no service is installed
+gui.device.camera_restart_failed = The service did not restart: systemctl --user restart openstargazer
+gui.device.camera_no_runtime = Unavailable: onnxruntime is not installed
+gui.device.camera_no_weights = Unavailable: the head-pose weights were not found
+gui.device.camera_failed = Could not be changed. Is the daemon running?
+gui.device.restart_service = Restart service
+
+gui.output.group = Output
+gui.output.udp = OpenTrack UDP
+gui.output.udp_subtitle = localhost:4242 - primary output for Star Citizen
+gui.output.shm = FreeTrack shared memory
+gui.output.shm_subtitle = Wine fallback - no sandbox
+
+gui.actions.group = Actions
+gui.actions.calibration = Gaze calibration
+gui.actions.calibration_subtitle = 5-point or 9-point polynomial calibration
+gui.actions.calibrate = Calibrate
+gui.actions.display = Align the device with the screen
+gui.actions.display_subtitle = One-off measurement: pixel density and tracker position
+gui.actions.measure_display = Align
+gui.actions.axes = Check head movement
+gui.actions.axes_subtitle = Live readout of the six axes sent to OpenTrack
+gui.actions.show_axes = Show
+gui.actions.recenter = Centre point
+gui.actions.recenter_subtitle = Take your current posture as the zero point for all six axes
+gui.actions.set_center = Set
+gui.actions.clear_center = Clear
+gui.actions.recenter_done = Centred here: yaw {yaw}°, {x} mm sideways, {z} mm away
+gui.actions.recenter_cleared = Cleared — the axes report device coordinates again
+gui.actions.recenter_failed = Did not work. Is the daemon running and the tracker seeing you?
+gui.actions.overlay = Gaze overlay (fullscreen)
+gui.actions.overlay_subtitle = Shows the gaze point across the whole screen
+gui.actions.show_overlay = Show
+gui.actions.curves = Response curves
+gui.actions.curves_subtitle = Per-axis Bezier curve editor
+gui.actions.edit_curves = Edit curves
+
+# ---------------------------------------------------------------------------
+# Settings page (card overview, 2026-08-18 redesign)
+# ---------------------------------------------------------------------------
+gui.settings.title = Settings
+gui.settings.language_tooltip = Language
+gui.settings.profile_button = Profile
+gui.settings.manage_profiles = Manage profiles…
+gui.settings.status_dots_tooltip = Service · Head tracking · Output
+gui.settings.connection_line = Tobii Eye Tracker 5 connected · {fps} Hz{source}
+gui.settings.device_on = Turn on
+gui.settings.device_off = Turn off
+gui.settings.support = Enjoying openstargazer?
+gui.settings.card_calibration = Calibration
+gui.settings.card_calibration_desc = Improve gaze accuracy, with a live preview
+gui.settings.card_calibration_done = Calibrated
+gui.settings.card_calibration_missing = Not calibrated yet
+gui.settings.card_games = Games
+gui.settings.card_games_subtitle = Which game is detected
+gui.settings.card_games_chip = Star Citizen detected
+gui.settings.card_output = Output
+gui.settings.card_output_desc = Where openstargazer sends the movement data
+gui.settings.card_output_subtitle = OpenTrack · Port {port}
+gui.settings.card_output_shm_only = FreeTrack only
+gui.settings.card_output_off = Output disabled
+gui.settings.card_overlay = Gaze preview
+gui.settings.card_overlay_subtitle = Shows live where you are looking
+gui.settings.card_overlay_chip = Fullscreen
+gui.settings.card_curves = Curves
+gui.settings.card_curves_subtitle = How strongly a movement carries into the game
+gui.settings.card_curves_chip = {n} axes adjusted
+gui.settings.card_tracking = Settings
+gui.settings.card_tracking_subtitle = Head tracking, language and more
+gui.settings.games_star_citizen = Star Citizen
+gui.settings.games_star_citizen_subtitle = Set up automatically, head tracking active
+gui.settings.games_detected = Detected
+gui.settings.games_more = More games coming
+gui.settings.output_intro = Where openstargazer sends your movements. Both can be on at once.
+gui.settings.tracking_extended = Extended head tracking
+gui.settings.tracking_extended_subtitle = A bit more compute, in exchange for turn and tilt as well.
+gui.settings.tracking_recenter_title = Neutral point
+gui.settings.tracking_recenter_subtitle = Sets the current head pose as centre
+gui.settings.tracking_axes_title = Axis preview
+gui.settings.tracking_axes_subtitle = Live values of every axis, for troubleshooting
+gui.settings.tracking_rerun_setup = Run setup again
+gui.settings.tracking_rerun_setup_subtitle = Goes through the initial setup once more
+gui.settings.tracking_language_title = Language
+
+# ---------------------------------------------------------------------------
+# osg-setup start screen (language, graphical/terminal)
+# ---------------------------------------------------------------------------
+setup_chooser.subtitle = Before we start, two quick questions.
+setup_chooser.language = Language
+setup_chooser.mode = How would you like to set up?
+setup_chooser.graphical = Graphical
+setup_chooser.terminal = Terminal
+
+# ---------------------------------------------------------------------------
+# Guided setup assistant (osg-config, first-run)
+# ---------------------------------------------------------------------------
+setup_assistant.next = Next
+setup_assistant.skip = Skip setup
+setup_assistant.skip_heading = Skip setup?
+setup_assistant.skip_body = You'll go straight to settings. Anything left open can be picked up there any time.
+setup_assistant.skip_stay = Keep setting up
+setup_assistant.skip_confirm = Skip
+
+setup_assistant.backend_kicker = Driver
+setup_assistant.backend_title = Connecting to the tracker
+setup_assistant.backend_ok_body = The native driver is ready, nothing needs installing.
+setup_assistant.backend_missing_intro = The stream-engine backend still needs Tobii's libraries.
+setup_assistant.backend_missing_body = Not downloaded yet.
+setup_assistant.backend_fetch = Download now
+setup_assistant.backend_fetch_done = ✓ Downloaded.
+setup_assistant.backend_fetch_failed = ✗ Failed — try again later with "osg-setup --cli".
+
+setup_assistant.camera_kicker = Extended head tracking
+setup_assistant.camera_title = Should the camera watch your head?
+setup_assistant.camera_body = The gaze stream alone carries no head rotation. The tracker's infrared camera does — the weights it needs are already included. A bit more compute, changeable any time in settings.
+setup_assistant.camera_yes = Yes, turn it on
+setup_assistant.camera_no = No, continue without the camera
+
+setup_assistant.hardware_kicker = Device
+setup_assistant.hardware_title = Detecting the tracker
+setup_assistant.hardware_found_body = ✓ Found: {line}
+setup_assistant.hardware_missing_body = No Tobii Eye Tracker 5 found. Plug it in and continue — the search can be repeated later.
+setup_assistant.hardware_no_lsusb_body = "lsusb" is not available on this system, skipping the search.
+setup_assistant.hardware_check_failed_body = Search failed: {error}
+
+setup_assistant.sc_kicker = Star Citizen
+setup_assistant.sc_title = Wine environment
+setup_assistant.sc_found_body = ✓ Found at {prefix}.
+setup_assistant.sc_missing_body = None detected automatically. Enter the paths by hand, or try again later with "osg-setup --cli".
+
+setup_assistant.ot_kicker = OpenTrack
+setup_assistant.ot_title = OpenTrack profile
+setup_assistant.ot_body = The UDP port openstargazer sends movement data to. The default works for most setups.
+setup_assistant.ot_failed_body = Could not write the profile: {error}
+
+setup_assistant.ingame_kicker = In-game
+setup_assistant.ingame_title = Turning on head tracking in Star Citizen
+
+setup_assistant.calibration_kicker = Calibration
+setup_assistant.calibration_title = Calibrate now?
+setup_assistant.calibration_body = Improves gaze accuracy. Can always be done later from the settings page.
+setup_assistant.calibration_now = Calibrate now
+setup_assistant.calibration_later = Later
+
+setup_assistant.service_kicker = Last step
+setup_assistant.service_title = Set up the service and device rules
+setup_assistant.service_body = Start openstargazer as a background service and install the udev rule for the tracker (needs sudo).
+setup_assistant.service_install = Set up
+
+gui.overlay.title = openstargazer - Gaze overlay
+gui.overlay.hint = Press ESC to close the gaze overlay
+gui.overlay.uncalibrated = Not calibrated yet - the gaze point may be far off. ESC closes.
+gui.overlay.no_gaze = No gaze detected
+gui.overlay.no_device = No device connected
+gui.overlay.no_daemon = No connection to the service
+
+gui.axes.title = openstargazer - Head movement
+gui.axes.rotation_group = Rotation
+gui.axes.position_group = Position
+gui.axes.yaw = Turn (left/right)
+gui.axes.pitch = Nod (up/down)
+gui.axes.roll = Tilt (sideways)
+gui.axes.x = Position left/right
+gui.axes.y = Position up/down
+gui.axes.z = Distance to the device
+gui.axes.status = Backend {backend}  -  {fps} frames/s
+gui.axes.no_device = No device connected
+gui.axes.no_daemon = No connection to the service
+gui.axes.not_detected = No head detected
+gui.axes.raw_value = Device reports {value}
+gui.axes.no_pitch_native = The gaze stream carries no nod - the device sends no data for it. Turn on extended head tracking (the device's own camera) for this axis, or use the stream-engine backend.
+gui.axes.banner = {axes}: not available from the {source} source
+
+gui.display.title = openstargazer - Align the device
+gui.display.headline = Align the device with the screen
+gui.display.instructions = The device carries two marks, exactly 185 mm apart.|Drag the two lines at the bottom edge onto those marks.|Drag with the mouse, fine-tune with the arrow keys (Shift = 10 px).
+gui.display.row_distance = Distance between the lines
+gui.display.row_density = Measured pixel density
+gui.display.row_width = Screen width from that
+gui.display.row_offset = Tracker against screen centre
+gui.display.row_edid = Cross-check from EDID
+gui.display.px_value = {px} px
+gui.display.edid_value = {density} px/mm  (deviation {deviation} %)
+gui.display.edid_missing = The screen reports no physical size
+gui.display.hint = Enter saves  -  Tab switches line  -  ESC cancels
+gui.display.save_failed = Could not save: {error}
+
+gui.calibration.title = openstargazer - Calibration
+gui.calibration.look_at_dots = Look at each dot as it appears
+gui.calibration.starts_automatically = Calibration starts automatically  -  press ESC to cancel
+gui.calibration.point_counter = Point {current} / {total}
+gui.calibration.results = Calibration results
+gui.calibration.accept = Press Enter to accept  -  ESC to calibrate again
+gui.calibration.saved = Calibration saved
+gui.calibration.failed = Calibration failed
+gui.calibration.close_hint = Press Enter or ESC to close
+gui.calibration.mean_residual = Mean deviation: {value}
+gui.calibration.point_dropped = dropped
+gui.calibration.point_summary = Point {index}: {samples}/{required} samples, {detail}
+gui.calibration.kept_previous = The previous calibration was kept
+
+gui.sweep.title = openstargazer - Head sweep
+gui.sweep.intro = Follow the dot with your head
+gui.sweep.intro_nose = Point your nose at it, not just your eyes
+gui.sweep.intro_upright = Keep your head upright and stay at the same distance
+gui.sweep.start = Press Space when you are ready
+gui.sweep.cancel = ESC cancels
+gui.sweep.hold = Look straight ahead and hold still
+gui.sweep.follow = Follow the dot
+gui.sweep.seconds_left = {seconds} s left
+gui.sweep.done = Recorded
+
+gui.tilt.intro = Lay your head down on the line
+gui.tilt.intro_eyes = Keep the line between your eyes parallel to it — the marks show the angle
+gui.tilt.intro_still = Tilt only — do not turn and do not move sideways
+gui.tilt.follow = Follow the line
+
+gui.nod.intro = Follow the dot with your head, up and down
+gui.nod.intro_nose = Point your nose at it, not just your eyes
+gui.nod.intro_still = Nod only — do not turn and do not lean forward or back
+gui.nod.follow = Follow the dot
+
+gui.curves.title = Response curves
+gui.curves.save = Save
+gui.curves.scale = Scale:
+gui.curves.invert = Invert
+gui.curves.reset = Reset
+gui.curves.axis_yaw = Yaw
+gui.curves.axis_pitch = Pitch
+gui.curves.axis_roll = Roll
+gui.curves.axis_x = X
+gui.curves.axis_y = Y
+gui.curves.axis_z = Z
+gui.curves.hint = Double-click the curve to add a point, double-click or right-click a point to remove it.
+gui.curves.point_added = Point added.
+gui.curves.point_removed = Point removed.
+gui.curves.point_limit = No more points fit on this curve.
+gui.curves.point_too_close = Too close to an existing point.
+
+gui.profiles.title = Profile manager
+gui.profiles.new = New
+gui.profiles.activate = Activate
+gui.profiles.delete = Delete
+gui.profiles.empty = No profiles saved yet
+
+
+cli.recenter.done = Centred here: yaw {yaw}°, {x} mm sideways, {z} mm away
+cli.recenter.cleared = Neutral pose cleared — the axes report device coordinates again
+cli.recenter.failed = Recenter failed: {reason}
+
+# ---------------------------------------------------------------------------
+# Status icon (osg-tray)
+# ---------------------------------------------------------------------------
+tray.status.tracking = openstargazer — tracking, {fps} fps
+tray.status.no_device = openstargazer — running, no tracker
+tray.status.stopped = openstargazer — daemon stopped
+tray.recenter = Set centre point
+tray.recenter.done = Centred here: yaw {yaw}°, {x} mm sideways, {z} mm away
+tray.recenter.failed = Could not set the centre point: {reason}
+tray.tracking = Tracking on
+tray.settings = Settings…
+tray.settings.failed = Could not start the configuration window (osg-config).
+tray.daemon.unreachable = The daemon is not reachable.
+tray.service = Service
+tray.service.start = Start
+tray.service.restart = Restart
+tray.service.stop = Stop
+tray.service.remove = Remove service (no autostart)…
+tray.service.failed = systemctl refused. See journalctl --user -u openstargazer.
+tray.service.removed = Service removed. The daemon can still be started by hand.
+tray.confirm.restart = Restart the daemon?
+tray.confirm.restart.detail = Tracking stops for a moment. A running game loses head tracking until the daemon is back.
+tray.confirm.stop = Stop the daemon?
+tray.confirm.stop.detail = Head tracking and gaze stop until it is started again. Nothing is uninstalled.
+tray.confirm.remove = Remove the service?
+tray.confirm.remove.detail = The daemon stops and will no longer start when you log in. The program stays installed and can be started by hand or reinstalled with osg-setup.
+tray.quit = Hide icon (daemon keeps running)
+gui.axes.no_yaw_native = The gaze stream carries no turn - no field the device sends holds it. The distance between the eyes does shrink as you turn, but it cannot tell left from right. Turn on extended head tracking (the device's own camera) for this axis, or use the stream-engine backend.
+
+# --- Settings window: additions 20.08.2026 ---------------------------------
+gui.cancel = Cancel
+gui.continue = Continue
+gui.status.no_device = No tracker found
+gui.language.de = Deutsch
+gui.language.en = English
+gui.language.fr = Français
+gui.language.it = Italiano
+gui.language.es = Español
+gui.source.et5_native = native backend
+gui.source.et5_ttp_camera = extended head tracking
+gui.source.et5_stream_engine = Stream Engine
+gui.source.mock = test source
+gui.settings.connection_off = Tobii Eye Tracker 5 switched off
+gui.settings.profile_button_named = Profile: {name}
+gui.settings.calibration_heading = Gaze accuracy
+gui.settings.calibration_lead = So the gaze point lands where you look. Not needed for head tracking itself.
+gui.settings.calibration_gaze_group = Gaze
+gui.settings.calibration_head_group = Head position
+gui.settings.calibration_head_desc = Where "straight ahead" is for you. Applies to all six axes.
+gui.settings.games_lead = Which game openstargazer found and set up.
+gui.settings.games_not_detected = Not found
+gui.settings.tracking_lead = Where head motion comes from, how the service runs, and in which language.
+gui.settings.tracking_group = Head tracking
+gui.output.port = Port
+gui.output.port_subtitle = The UDP port OpenTrack listens on. The default is 4242.
+gui.output.port_saved = Saved: port {port}
+gui.output.port_failed = Not applied: {reason}
+gui.service.group = Service
+gui.service.group_desc = The same background service the panel icon controls.
+gui.service.state = openstargazer service
+gui.service.running = Running
+gui.service.stopped = Installed but stopped
+gui.service.not_installed = Not installed - the daemon does not start at login
+gui.service.install_title = Autostart
+gui.service.install_subtitle = Starts the daemon at every login
+gui.service.install = Set up
+gui.profiles.rename = Rename
+gui.profiles.active = Active
+gui.profiles.save = Save
+gui.profiles.save_current = Save current settings...
+gui.profiles.save_heading = Save profile
+gui.profiles.save_body = Every current setting is stored under this name. An existing name is overwritten.
+gui.profiles.name_placeholder = e.g. Star Citizen
+gui.profiles.saved = Saved: {name}
+gui.profiles.save_failed = Not saved: {reason}
+gui.profiles.activated = Active: {name}
+gui.profiles.activate_failed = Not activated: {reason}
+gui.profiles.rename_failed = Not renamed: {reason}
+gui.profiles.delete_heading = Delete profile "{name}"?
+gui.profiles.delete_body = This profile's stored settings are lost. The settings currently in use stay as they are.
+gui.profiles.deleted = Deleted: {name}
+gui.profiles.delete_failed = Not deleted: {reason}
+gui.profiles.select_first = Select a profile in the list first.

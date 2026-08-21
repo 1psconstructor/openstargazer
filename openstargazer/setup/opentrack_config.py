@@ -1,11 +1,5 @@
-"""
-OpenTrack configuration generator for the LUG Star Citizen setup.
-
-Generates a complete OpenTrack XML profile that wires:
-  Input  : UDP over network (port 4242, osg-daemon sends here)
-  Filter : None (osg-daemon already filters via OneEuro)
-  Output : Wine (runner + SC prefix, protocol Both = FreeTrack+TrackIR)
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import logging
@@ -24,17 +18,11 @@ _PROFILE_NAME = "tobii5-starcitizen"
 
 
 def _find_opentrack_config_dir() -> Path:
-    """
-    Return the correct OpenTrack config directory.
-    Prefers native install; falls back to Flatpak dir if native dir is absent
-    but Flatpak dir exists.  Creates native dir as last resort.
-    """
     if _OPENTRACK_CONFIG_DIR_NATIVE.exists():
         return _OPENTRACK_CONFIG_DIR_NATIVE
     if _OPENTRACK_CONFIG_DIR_FLATPAK.exists():
         log.info("Using Flatpak OpenTrack config dir: %s", _OPENTRACK_CONFIG_DIR_FLATPAK)
         return _OPENTRACK_CONFIG_DIR_FLATPAK
-    # Neither exists yet – check if Flatpak OpenTrack is installed
     import subprocess
     if shutil.which("flatpak"):
         try:
@@ -51,21 +39,13 @@ def _find_opentrack_config_dir() -> Path:
 
 
 class OpenTrackConfigGenerator:
-    """Generate and install an OpenTrack profile for openstargazer + Star Citizen."""
-
     def generate(self, lug: LUGInstall, udp_port: int = 4242) -> str:
-        """
-        Return a complete OpenTrack INI-format profile string.
-
-        OpenTrack uses Qt's QSettings INI format.
-        """
         runner = str(lug.runner_path) if lug.runner_path else ""
         prefix = str(lug.wine_prefix)
 
         esync_val = "true" if lug.esync else "false"
         fsync_val = "true" if lug.fsync else "false"
 
-        # OpenTrack uses 1/0 for booleans in some sections
         content = f"""\
 [General]
 profile-name={_PROFILE_NAME}
@@ -116,9 +96,6 @@ z\\clamp=1
         return content
 
     def generate_xml(self, lug: LUGInstall, udp_port: int = 4242) -> str:
-        """
-        Alternative: generate as OpenTrack XML format (used by some versions).
-        """
         runner = str(lug.runner_path) if lug.runner_path else ""
         prefix = str(lug.wine_prefix)
 
@@ -143,11 +120,6 @@ z\\clamp=1
 """
 
     def install(self, lug: LUGInstall, udp_port: int = 4242) -> Path:
-        """
-        Generate profile, write to the correct OpenTrack config directory
-        (native or Flatpak), and set it as the default profile.
-        Returns the path to the installed profile file.
-        """
         config_dir = _find_opentrack_config_dir()
         config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -165,7 +137,6 @@ z\\clamp=1
                 "Wine output plugin to work correctly."
             )
 
-        # Write the "last used profile" pointer so OpenTrack auto-loads it
         last_profile_file = config_dir / "opentrack.ini"
         if last_profile_file.exists():
             _update_ini_value(last_profile_file, "General", "profile",
@@ -180,7 +151,6 @@ z\\clamp=1
 
 
 def _update_ini_value(path: Path, section: str, key: str, value: str) -> None:
-    """Update or insert a key in an INI file section."""
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     in_section = False
     key_found = False

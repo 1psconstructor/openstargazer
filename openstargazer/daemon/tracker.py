@@ -1,14 +1,5 @@
-"""
-TrackerManager – lifecycle management for the Tobii Eye Tracker 5.
-
-Responsibilities:
-- Start / stop tobiiusbservice
-- Load Stream Engine and open the device
-- Subscribe to gaze + head-pose streams
-- Run the blocking tracking loop in a dedicated thread
-- Publish TrackingFrame objects to registered async consumers
-- Auto-reconnect on device loss (every RECONNECT_INTERVAL_S seconds)
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import asyncio
@@ -32,18 +23,6 @@ FrameCallback = Callable[[TrackingFrame], Awaitable[None]]
 
 
 class TrackerManager:
-    """
-    Manages the full lifecycle of the Tobii Eye Tracker 5 connection.
-
-    Usage (inside asyncio)::
-
-        mgr = TrackerManager(loop)
-        mgr.add_consumer(my_async_func)
-        await mgr.start()
-        # ... run forever ...
-        await mgr.stop()
-    """
-
     def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         self._loop = loop or asyncio.get_event_loop()
         self._consumers: list[FrameCallback] = []
@@ -61,11 +40,9 @@ class TrackerManager:
         self._fps = 0.0
         self._reconnect_task: asyncio.Task | None = None
 
-        # Latest frame (for IPC status queries)
         self._latest_frame: TrackingFrame = TrackingFrame.invalid()
+        self._latest_frame_at: float | None = None
 
-    # ------------------------------------------------------------------
-    # Public API
 
     def add_consumer(self, cb: FrameCallback) -> None:
         self._consumers.append(cb)
@@ -86,8 +63,13 @@ class TrackerManager:
     def latest_frame(self) -> TrackingFrame:
         return self._latest_frame
 
+    @property
+    def frame_age_s(self) -> float:
+        if self._latest_frame_at is None:
+            return float("inf")
+        return time.monotonic() - self._latest_frame_at
+
     async def pause_tracking(self) -> None:
-        """Disconnect device and stop reconnect watchdog. LEDs turn off."""
         self._paused = True
         if self._reconnect_task:
             self._reconnect_task.cancel()
@@ -99,7 +81,6 @@ class TrackerManager:
         self._disconnect()
 
     async def resume_tracking(self) -> None:
-        """Reconnect device and restart reconnect watchdog. LEDs turn on."""
         self._paused = False
         try:
             await self._connect()
@@ -108,23 +89,18 @@ class TrackerManager:
         self._reconnect_task = asyncio.create_task(self._reconnect_watch())
 
     async def start(self) -> None:
-        """Load the Stream Engine, connect to the device, start tracking."""
         self._stop_event.clear()
         await self._connect()
         self._reconnect_task = asyncio.create_task(self._reconnect_watch())
 
     async def stop(self) -> None:
-        """Gracefully disconnect and clean up."""
         self._stop_event.set()
         if self._reconnect_task:
             self._reconnect_task.cancel()
         self._disconnect()
 
-    # ------------------------------------------------------------------
-    # Connection lifecycle
 
     async def _connect(self) -> bool:
-        """Try to connect; return True on success."""
         try:
             await self._ensure_usbservice()
             if self._lib is None:
@@ -146,8 +122,6 @@ class TrackerManager:
 
             self._bridge = CallbackBridge(self._loop)
 
-            # Try tobii_gaze_data_subscribe (PRP stream 6) first – activates LEDs on ET5.
-            # Fall back to tobii_gaze_point_subscribe (PRP stream 3) if not available.
             try:
                 self._lib.subscribe_gaze_data(self._dev, self._bridge.gaze_data_cb)
                 self._gaze_data_mode = True
@@ -208,11 +182,8 @@ class TrackerManager:
 
         log.info("Tracker disconnected")
 
-    # ------------------------------------------------------------------
-    # Tracking thread
 
     def _tracking_loop(self) -> None:
-        """Blocking loop running in a dedicated thread."""
         from openstargazer.engine.api import TOBII_ERROR_NO_ERROR, TOBII_ERROR_TIMED_OUT
 
         assert self._lib is not None
@@ -223,13 +194,11 @@ class TrackerManager:
 
         while not self._stop_event.is_set():
             rc = self._lib.wait_for_callbacks(self._dev)
-            # TIMED_OUT (6) is normal when no callbacks arrive within 200ms – not a device loss
             if rc not in (TOBII_ERROR_NO_ERROR, TOBII_ERROR_TIMED_OUT):
                 log.warning("wait_for_callbacks returned %d – device lost?", rc)
                 self._connected = False
                 break
 
-            # process_callbacks must be called even after TIMED_OUT (correct per SDK docs)
             rc = self._lib.process_callbacks(self._dev)
             if rc != TOBII_ERROR_NO_ERROR:
                 log.warning("process_callbacks returned %d", rc)
@@ -242,6 +211,7 @@ class TrackerManager:
             if gaze is not None or head is not None:
                 frame = self._merge(gaze, head)
                 self._latest_frame = frame
+                self._latest_frame_at = time.monotonic()
                 asyncio.run_coroutine_threadsafe(self._dispatch(frame), self._loop)
 
                 fps_counter += 1
@@ -294,8 +264,6 @@ class TrackerManager:
             except Exception:
                 log.exception("Consumer callback raised exception")
 
-    # ------------------------------------------------------------------
-    # Auto-reconnect watchdog
 
     async def _reconnect_watch(self) -> None:
         while not self._stop_event.is_set():
@@ -305,11 +273,8 @@ class TrackerManager:
                 self._disconnect()
                 await self._connect()
 
-    # ------------------------------------------------------------------
-    # tobiiusbservice
 
     async def _ensure_usbservice(self) -> None:
-        """Start tobiiusbservice if not already running."""
         if not USBSERVICE_BINARY.exists():
             log.warning("tobiiusbservice not found at %s – assuming already running", USBSERVICE_BINARY)
             return
@@ -327,21 +292,12 @@ class TrackerManager:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            await asyncio.sleep(1.0)  # give it a moment to initialise
+            await asyncio.sleep(1.0)
         except Exception as exc:
             log.warning("Could not check/start tobiiusbservice: %s", exc)
 
 
-# ---------------------------------------------------------------------------
-# Mock tracker for testing without physical hardware
-# ---------------------------------------------------------------------------
-
 class MockTrackerManager(TrackerManager):
-    """
-    Generates synthetic sinusoidal tracking data.
-    Useful for UI development and protocol testing.
-    """
-
     def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         super().__init__(loop)
         self._mock_task: asyncio.Task | None = None
@@ -365,7 +321,7 @@ class MockTrackerManager(TrackerManager):
         fps_counter = 0
 
         while not self._stop_event.is_set():
-            await asyncio.sleep(1 / 90)  # ~90 Hz
+            await asyncio.sleep(1 / 90)
             t += 1 / 90
 
             frame = TrackingFrame(

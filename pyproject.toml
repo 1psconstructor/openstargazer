@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "openstargazer"
-version = "0.1.0"
+version = "0.5.0"
 description = "Native Linux driver for Tobii Eye Tracker 5 with OpenTrack & Star Citizen integration"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "GPL-3.0-or-later"}
 requires-python = ">=3.10"
 authors = [
     {name = "1psconstructor"},
@@ -17,7 +17,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: X11 Applications :: GTK",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -34,6 +34,10 @@ dependencies = [
 [project.optional-dependencies]
 gui  = ["pygobject>=3.44"]
 tray = ["pystray>=0.19"]
+# Head rotation from the camera. Optional on purpose: without it the ET5
+# still delivers gaze, position and roll, and the source says plainly
+# which axes are missing and why. No model file is fetched by this.
+camera = ["onnxruntime>=1.17"]
 dev  = ["pytest>=7.0", "pytest-asyncio>=0.21"]
 
 [project.urls]
@@ -45,6 +49,12 @@ Repository = "https://github.com/1psconstructor/openstargazer"
 osg-daemon = "openstargazer.daemon.main:main"
 osg-config  = "gui.app:main"
 osg-setup   = "openstargazer.setup.wizard:main"
+# Meant to be bound to a key in the desktop's shortcut editor — a Wayland
+# client cannot grab a global hotkey for itself.
+osg-recenter = "openstargazer.ipc.cli:main"
+# Its own program because the tray stack is GTK 3 and the config window is
+# GTK 4; the two cannot share a process.
+osg-tray = "gui.tray_app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["openstargazer", "gui"]

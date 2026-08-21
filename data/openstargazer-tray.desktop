@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=OpenStarGazer Status Icon
+GenericName=Eye Tracker Status Icon
+Comment=Status icon for the openstargazer daemon: centre point, tracking, service control
+# Rewritten at install time to the absolute path of the installed osg-tray;
+# a venv installation never appears on PATH.
+Exec=osg-tray
+Icon=openstargazer
+Terminal=false
+Type=Application
+Categories=Utility;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=OpenStarGazer
+GenericName=Eye Tracker Configuration
+Comment=Configure Tobii Eye Tracker 5 for Star Citizen on Linux
+Exec=osg-config
+Icon=openstargazer
+Terminal=false
+Type=Application
+Categories=Utility;Settings;
+Keywords=tobii;eyetracking;head tracking;star citizen;openstargazer;
+StartupNotify=true
+# The file name has to match the application id the window announces
+# (org.openstargazer.config). Wayland compositors look the window's app_id
+# up as <app_id>.desktop; as openstargazer.desktop this file was never
+# found, and the task bar fell back to a generic icon.
+StartupWMClass=org.openstargazer.config

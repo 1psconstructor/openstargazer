@@ -1,9 +1,5 @@
-"""
-osg-config – GTK4 / libadwaita application entry point.
-
-Starts the GUI and connects to the running osg-daemon via IPC.
-Falls back gracefully if the daemon is not running.
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import logging
@@ -13,8 +9,6 @@ log = logging.getLogger(__name__)
 
 
 class MockIPCClient:
-    """Fake IPC client for GUI development without a running daemon."""
-
     def get_status(self) -> dict:
         return {
             "connected": True,
@@ -32,8 +26,8 @@ class MockIPCClient:
     def get_config(self) -> dict:
         return {
             "filter": {
-                "one_euro_min_cutoff": 1.0,
-                "one_euro_beta": 0.007,
+                "one_euro_min_cutoff": 2.0,
+                "one_euro_beta": 0.1,
                 "gaze_deadzone_px": 5.0,
             },
             "output": {
@@ -49,6 +43,16 @@ class MockIPCClient:
 
     def start_calibration(self, mode: int = 5) -> dict:
         return {"started": True, "mode": mode}
+
+    def recenter(self) -> dict:
+        return {
+            "recentered": True,
+            "neutral_pose": {"yaw": 0.0, "pitch": 0.0, "roll": 0.0,
+                             "x": 0.0, "y": 0.0, "z": 600.0},
+        }
+
+    def clear_recenter(self) -> dict:
+        return {"recentered": False}
 
     def list_profiles(self) -> list[str]:
         return ["default", "star-citizen", "dcs"]
@@ -89,17 +93,21 @@ def main() -> None:
         level=logging.DEBUG if args.verbose else logging.INFO,
     )
 
+    from openstargazer.i18n import apply_saved_language
+    apply_saved_language()
+
     if not _check_gtk():
         sys.exit(1)
+
+    from pathlib import Path
 
     import gi
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
-    from gi.repository import Adw, Gio
+    from gi.repository import Adw, Gdk, Gio, Gtk
 
     from gui.main_window import MainWindow
 
-    # Select IPC client based on --mock flag
     ipc_client = None
     if args.mock:
         ipc_client = MockIPCClient()
@@ -122,8 +130,18 @@ def main() -> None:
         def do_startup(self) -> None:
             Adw.Application.do_startup(self)
 
+            icons_dir = Path(__file__).parent.parent / "data" / "icons"
+            display = Gdk.Display.get_default()
+            if display is not None and icons_dir.is_dir():
+                Gtk.IconTheme.get_for_display(display).add_search_path(str(icons_dir))
+
+            from gui import design
+            design.load_css(display)
+
+            Gtk.Window.set_default_icon_name("openstargazer")
+
     app = Tobii5App()
-    sys.exit(app.run(sys.argv))
+    sys.exit(app.run(sys.argv[:1]))
 
 
 if __name__ == "__main__":

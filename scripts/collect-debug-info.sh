@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 # collect-debug-info.sh – Collects system/installation information for GitHub bug reports.
 #
 # Usage: ./collect-debug-info.sh
@@ -59,9 +61,31 @@ _redact_config() {
         printf '  (not found: %s)\n' "${file}"
         return
     fi
-    local username
+    cat "${file}"
+}
+
+# Every home path in the finished report, not only the ones in the config.
+#
+# This used to run on the config section alone, while the report also
+# carries `systemctl status` (which prints the unit path), the journal,
+# the install log and a list of checked paths -- all of them full of
+# /home/<name>. The report says the paths are redacted, so they have to
+# be, in all of it: it is written to be attached to a public issue.
+#
+# $HOME first and separately, because it is not always /home/<name>.
+_redact() {
+    local username home host
     username="$(id -un)"
-    sed "s|/home/${username}/|/home/<user>/|g" "${file}"
+    home="${HOME%/}"
+    # The journal stamps every line with the machine's name, and people
+    # name their machines after themselves. Only on journal lines, which
+    # begin with a syslog timestamp: a hostname is often an ordinary word
+    # -- this machine's is its distribution's name -- and replacing it
+    # everywhere blanked `ID=fedora` out of the os-release section.
+    host="$(hostname -s 2>/dev/null || true)"
+    sed -e "s|${home}|/home/<user>|g" \
+        -e "s|/home/${username}|/home/<user>|g" \
+        ${host:+-e "/^ *[A-Z][a-z][a-z] [ 0-9][0-9] [0-9][0-9]:[0-9][0-9]:/ s|${host}|<host>|g"}
 }
 
 # ---------------------------------------------------------------------------
@@ -108,6 +132,28 @@ collect() {
     # ---- Section 4: USB devices ----
     _section "USB Devices (Tobii)"
     lsusb 2>/dev/null | grep -i tobii || printf '  (no Tobii device found via lsusb)\n'
+
+    # The configured backend decides which of the sections below matter:
+    # "native" needs pyusb and the udev rule, "stream-engine" needs Tobii's
+    # binaries and tobiiusbserviced.
+    _section "Tracking Backend"
+    local cfg_file="${XDG_CONFIG_HOME:-${HOME}/.config}/openstargazer/config.toml"
+    local backend="native (default)"
+    if [[ -f "${cfg_file}" ]]; then
+        local configured
+        configured="$(sed -n 's/^[[:space:]]*backend[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "${cfg_file}" | head -1)"
+        [[ -n "${configured}" ]] && backend="${configured}"
+    fi
+    printf '  Configured backend: %s\n' "${backend}"
+
+    # An install that hit PEP 668 lives in a venv -- checking the system
+    # python3 there would report a missing pyusb that is actually present.
+    local py="python3"
+    [[ -x "${venv_dir}/bin/python3" ]] && py="${venv_dir}/bin/python3"
+    printf '  Python used       : %s\n' "${py}"
+    printf '  pyusb             : '
+    "${py}" -c 'import usb; print(getattr(usb, "__version__", "unknown"))' 2>/dev/null \
+        || printf 'not importable\n'
 
     # ---- Section 5: openstargazer service ----
     _section "openstargazer systemd User Service"
@@ -187,7 +233,7 @@ collect() {
 
 # ---------------------------------------------------------------------------
 echo "Collecting debug information..."
-collect > "${OUTPUT_FILE}" 2>&1
+collect 2>&1 | _redact > "${OUTPUT_FILE}"
 
 echo ""
 echo "Debug report saved to:"

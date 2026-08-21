@@ -2,15 +2,27 @@
 Description=OpenStarGazer – Tobii Eye Tracker 5 Daemon
 Documentation=https://github.com/1psconstructor/openstargazer
 After=graphical-session.target
+# Give up after five failed starts in a minute instead of restarting forever.
+# With RestartSec=3 the systemd default window of 10 s can never be reached —
+# five attempts take fifteen seconds — so a unit that can never start would
+# retry every three seconds for as long as the session lasts, writing a
+# journal entry each time.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
-# osg-setup install-service should set the correct path for ExecStart.
-# The Environment line ensures ~/.local/bin is on PATH for pip-installed scripts.
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
-# %h expands to the user's home directory — valid only for --user units
+# ExecStart is rewritten at install time to the absolute path of the
+# osg-daemon that was actually installed (scripts/install.sh and the setup
+# wizard both do this). The line below is only the fallback for a plain
+# "pip install --user", and it is deliberately an absolute path: resolving
+# the binary through PATH hides a missing installation behind exit code 127,
+# which systemd reports as a failed start and nothing more.
+# %h expands to the user's home directory — valid only for --user units.
+ExecStart=%h/.local/bin/osg-daemon
+# Only relevant for the "stream-engine" backend; the default native backend
+# ignores it.
 Environment=OSG_STREAM_ENGINE_PATH=%h/.local/share/openstargazer/lib/libtobii_stream_engine.so
-ExecStart=/bin/sh -c 'PATH="$HOME/.local/bin:$PATH" exec osg-daemon'
 Restart=on-failure
 RestartSec=3
 

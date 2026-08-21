@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 # fetch-stream-engine.sh – Download Tobii Stream Engine binaries for Linux
 #
 # Sources files directly from the johngebbie/tobii_4C_for_linux repository.

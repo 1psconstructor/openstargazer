@@ -1,9 +1,16 @@
 # openstargazer – Tobii Eye Tracker 5 – all known PIDs
 # Copy to /etc/udev/rules.d/ and run: udevadm control --reload-rules && udevadm trigger
+#
+# No GROUP= here on purpose: on systemd/udev 258+ (e.g. Fedora 43), a GROUP
+# name that cannot be resolved (plugdev does not exist on Fedora) makes
+# udevd drop the entire rule line at parse time -- not just that one key --
+# so MODE and TAG+="uaccess" silently never applied either. TAG+="uaccess"
+# alone is sufficient (systemd-logind grants the active seat user access),
+# MODE stays as a fallback for non-logind setups.
 
-SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0127", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0118", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0106", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0128", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="010a", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0313", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0127", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0118", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0106", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0128", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="010a", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2104", ATTR{idProduct}=="0313", MODE="0660", TAG+="uaccess"

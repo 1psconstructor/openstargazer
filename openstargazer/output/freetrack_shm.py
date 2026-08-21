@@ -1,14 +1,5 @@
-"""
-FreeTrack shared-memory output plugin (Wine fallback).
-
-Writes head-pose data into a POSIX shared memory segment that matches
-the FreeTrack 2.0 protocol layout. Wine applications can read this
-without a network round-trip when running without a sandbox.
-
-Note: Only works when Star Citizen runs in a Wine prefix that can
-access the host's /dev/shm. Sandboxed Wine (e.g., Flatpak with strict
-isolation) will NOT work – use OpenTrack UDP instead.
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import ctypes
@@ -19,28 +10,26 @@ import struct
 
 from openstargazer.engine.api import TrackingFrame
 from openstargazer.output.base import OutputPlugin
+from openstargazer.output.registry import register_output
 
 log = logging.getLogger(__name__)
 
 SHM_NAME = "/FT_SharedMem"
-SHM_SIZE = 128  # FreeTrack shared memory block size
+SHM_SIZE = 128
 
 
 class FreeTrackSharedMemory(ctypes.Structure):
-    """FreeTrack 2.0 shared memory layout (matches Wine FreeTrack plugin)."""
     _pack_ = 1
     _fields_ = [
-        ("data_id",     ctypes.c_uint32),   # monotonically increasing frame counter
+        ("data_id",     ctypes.c_uint32),
         ("cam_width",   ctypes.c_int32),
         ("cam_height",  ctypes.c_int32),
-        # Head pose – all in mm / degrees (same scale as OpenTrack)
         ("yaw",         ctypes.c_float),
         ("pitch",       ctypes.c_float),
         ("roll",        ctypes.c_float),
         ("x",           ctypes.c_float),
         ("y",           ctypes.c_float),
         ("z",           ctypes.c_float),
-        # Raw tracker values (duplicated for compatibility)
         ("raw_yaw",     ctypes.c_float),
         ("raw_pitch",   ctypes.c_float),
         ("raw_roll",    ctypes.c_float),
@@ -50,15 +39,14 @@ class FreeTrackSharedMemory(ctypes.Structure):
     ]
 
 
+@register_output("freetrack_shm")
 class FreeTrackSHMOutput(OutputPlugin):
-    """Write tracking data to FreeTrack shared memory."""
-
     name = "freetrack_shm"
 
     def __init__(self) -> None:
         self._fd: int | None = None
         self._mm: mmap.mmap | None = None
-        self._posix_shm = None  # keeps posix_ipc.SharedMemory alive to prevent GC closing the fd
+        self._posix_shm = None
         self._frame_id: int = 0
         self._running = False
 
@@ -70,10 +58,9 @@ class FreeTrackSHMOutput(OutputPlugin):
         try:
             import posix_ipc  # type: ignore[import]
             shm = posix_ipc.SharedMemory(SHM_NAME, posix_ipc.O_CREAT, size=SHM_SIZE)
-            self._posix_shm = shm  # keep reference alive until stop()
+            self._posix_shm = shm
             self._fd = shm.fd
         except ImportError:
-            # Fallback: use os.open directly on Linux
             import fcntl
             self._fd = os.open(f"/dev/shm/{SHM_NAME.lstrip('/')}", os.O_CREAT | os.O_RDWR, 0o600)
             os.ftruncate(self._fd, SHM_SIZE)

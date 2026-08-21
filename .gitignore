@@ -18,3 +18,33 @@ venv/
 Thumbs.db
 *.egg
 .eggs/
+
+# Recordings from the guided runs: eye positions, eye distance and
+# pupil diameters, frame by frame -- biometric data of a real person.
+# Kept on a private branch, off every public remote.
+# Anchored to the root on purpose: the kept copies live under
+# a private branch and have to stay trackable there.
+/field-scan-samples.csv
+/tilt-scan-samples.csv
+/sweep-samples.csv
+
+# Neural-network weights from third parties are never committed. What a
+# set of weights was trained on is a separate question from what this
+# code may do, and for the opentrack head-pose models that question has an
+# uncomfortable answer: their training data carries non-commercial terms.
+#
+# openstargazer's own weights, trained on replicantface (MIT) from scratch,
+# are GPL-3.0 and live under openstargazer/models/. They are the exception.
+*.onnx
+*.ckpt
+*.pt
+*.pth
+!openstargazer/models/head-pose.onnx
+
+# Camera frames are photographs of whoever is sitting in front of the
+# tracker, in their room. Same rule as the recordings above, one step
+# more sensitive: they belong on a private branch and
+# nowhere near a branch that goes public.
+/camera-frame.*
+/*.pgm
+/*.raw

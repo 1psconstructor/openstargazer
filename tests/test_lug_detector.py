@@ -1,4 +1,5 @@
-"""Unit tests for LUG-Helper detector using mock filesystem."""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 import os
 import tempfile
 from pathlib import Path
@@ -9,18 +10,12 @@ import pytest
 from openstargazer.setup.lug_detector import LUGDetector, _bool_val
 
 
-# ---------------------------------------------------------------------------
-# Helper to create a mock LUG config
-
 def _write_lug_config(config_dir: Path, content: str) -> None:
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / "config").write_text(content)
 
 
-# ---------------------------------------------------------------------------
-
 def test_no_config_returns_none():
-    """detect() returns None when no LUG config directory exists."""
     with tempfile.TemporaryDirectory() as tmpdir:
         detector = LUGDetector()
         detector.CONFIG_DIR = Path(tmpdir) / "does-not-exist"
@@ -29,7 +24,6 @@ def test_no_config_returns_none():
 
 
 def test_parses_wineprefix(tmp_path):
-    """detect() correctly reads WINEPREFIX from config."""
     prefix = tmp_path / "star-citizen-prefix"
     prefix.mkdir()
 
@@ -39,7 +33,6 @@ def test_parses_wineprefix(tmp_path):
     detector = LUGDetector()
     detector.CONFIG_DIR = config_dir
 
-    # Patch find_runner to avoid filesystem search
     with patch.object(detector, 'find_runner', return_value=None):
         result = detector.detect()
 
@@ -50,7 +43,6 @@ def test_parses_wineprefix(tmp_path):
 
 
 def test_parses_runner(tmp_path):
-    """detect() correctly reads runner path from config."""
     prefix = tmp_path / "prefix"
     prefix.mkdir()
     runner = tmp_path / "wine" / "bin" / "wine"

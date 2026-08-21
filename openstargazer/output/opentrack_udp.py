@@ -1,19 +1,5 @@
-"""
-OpenTrack UDP output plugin.
-
-Encodes 6-DoF tracking data as 6 × little-endian double (48 bytes) and
-sends it via UDP to OpenTrack's "UDP over network" input plugin.
-
-Default target: localhost:4242 (OpenTrack default).
-
-Wire format (OpenTrack protocol):
-  bytes  0– 7  : X position  (mm or arbitrary)
-  bytes  8–15  : Y position
-  bytes 16–23  : Z position
-  bytes 24–31  : Yaw   (degrees)
-  bytes 32–39  : Pitch (degrees)
-  bytes 40–47  : Roll  (degrees)
-"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 1psconstructor
 from __future__ import annotations
 
 import asyncio
@@ -23,15 +9,15 @@ import struct
 
 from openstargazer.engine.api import TrackingFrame
 from openstargazer.output.base import OutputPlugin
+from openstargazer.output.registry import register_output
 
 log = logging.getLogger(__name__)
 
-_STRUCT = struct.Struct("<6d")  # 48 bytes, little-endian doubles
+_STRUCT = struct.Struct("<6d")
 
 
+@register_output("opentrack_udp")
 class OpenTrackUDPOutput(OutputPlugin):
-    """Send tracking data to OpenTrack via UDP (48-byte packet)."""
-
     name = "opentrack_udp"
 
     def __init__(self, host: str = "127.0.0.1", port: int = 4242) -> None:
@@ -78,7 +64,6 @@ class OpenTrackUDPOutput(OutputPlugin):
 
     @staticmethod
     def decode_packet(data: bytes) -> tuple[float, ...]:
-        """Decode a raw 48-byte UDP packet → (x, y, z, yaw, pitch, roll)."""
         if len(data) != 48:
             raise ValueError(f"Expected 48 bytes, got {len(data)}")
         return _STRUCT.unpack(data)
