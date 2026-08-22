@@ -275,7 +275,8 @@ After installation the **Setup Wizard** (`osg-setup`) starts automatically.
   `tobiiusbservice` exist under `~/.local/share/openstargazer/` and offers
   to download them (`fetch-stream-engine.sh`). The Stream Engine backend
   is optional; it is not required for head pitch, which the next step
-  covers without it.
+  covers without it — and on most retail ET5 units it does not work at
+  all regardless, for the licensing reason under `[device]` below.
 
 **Extended head tracking (optional)**
 - The step that decides whether you get four axes or six. The gaze stream
@@ -435,10 +436,18 @@ device fields rather than left unimplemented. Those two axes come from
 the `et5_ttp_camera` source described under `[input]`.
 
 Switching backends does not require a reinstall. The `stream-engine`
-backend is optional — it is not needed for head pitch and the installer
-no longer offers it. If you do use it, run
-`./scripts/fetch-stream-engine.sh` once to fetch its binaries, then set
-`backend = "stream-engine"` under `[device]` yourself.
+backend is optional and, on most retail ET5 units, **not usable at
+all**: `tobii_gaze_data_subscribe` and `tobii_head_pose_subscribe` both
+return `INSUFFICIENT_LICENSE` without a Stream Engine licence, and that
+licence ships only with certain OEM/partner deals, not with a bare
+consumer device. That gap — head rotation nobody outside Tobii's own
+software could reach on Linux — is why `et5_ttp_camera` exists: it reads
+the same infrared camera through the project's own model instead of
+asking Tobii's library for a pose it has no licence to hand out. The
+installer no longer offers `stream-engine`, and repair no longer
+maintains an existing one either; the manual path is still there for the
+rare licensed device — run `./scripts/fetch-stream-engine.sh` once, then
+set `backend = "stream-engine"` under `[device]` yourself.
 
 ---
 
@@ -461,7 +470,7 @@ model_path = ""
 |--------|-------|------|
 | `et5_native` | nothing beyond `pyusb` | position, roll, gaze |
 | `et5_ttp_camera` | `onnxruntime` (`pip install 'openstargazer[camera]'`) | the same **plus yaw and pitch** |
-| `et5_stream_engine` | Tobii's unofficial binaries | six, through Tobii's own software |
+| `et5_stream_engine` | Tobii's unofficial binaries **and** a Stream Engine licence most retail units do not have | six, in principle — see the note above; without the licence, none |
 | `mock` | nothing | a simulated signal, for testing without hardware |
 
 **Extended head tracking (`et5_ttp_camera`)** reads the ET5's infrared
@@ -1285,6 +1294,11 @@ bash scripts/fetch-stream-engine.sh
 ls ~/.local/share/openstargazer/lib/libtobii_stream_engine.so
 ls ~/.local/share/openstargazer/bin/tobiiusbservice
 ```
+
+If the library is present and the daemon still logs `INSUFFICIENT_LICENSE`
+on `gaze_data`/`head_pose`, that is not a missing file — see the licence
+note under `[device]` above. Most retail ET5 units cannot use this
+backend at all; switch to `et5_ttp_camera` instead.
 
 ---
 

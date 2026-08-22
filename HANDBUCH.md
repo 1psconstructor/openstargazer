@@ -275,7 +275,9 @@ Nach der Installation startet automatisch der **Setup-Wizard** (`osg-setup`).
   `tobiiusbservice` unter `~/.local/share/openstargazer/` vorhanden sind,
   und bietet den Download an (`fetch-stream-engine.sh`). Das Stream-Engine-
   Backend ist optional; für Kopf-Neigung wird es nicht gebraucht — dafür
-  ist der nächste Schritt da.
+  ist der nächste Schritt da —, und auf den meisten Einzelhandels-ET5
+  funktioniert es ohnehin nicht, aus dem Lizenzgrund unter `[device]`
+  weiter unten.
 
 **Erweitertes Headtracking (optional)**
 - Der Schritt, der über vier oder sechs Achsen entscheidet. Der
@@ -441,10 +443,20 @@ Neigung — der Blickstrom trägt keine Kopfrotation, und das ist gemessen
 kommen aus der Quelle `et5_ttp_camera`, siehe `[input]`.
 
 Ein Backend-Wechsel braucht keine Neuinstallation. Das `stream-engine`-
-Backend ist optional — für Kopf-Neigung wird es nicht gebraucht, und der
-Installer bietet es nicht mehr an. Wer es dennoch nutzt, führt einmalig
-`./scripts/fetch-stream-engine.sh` aus, um die Binärdateien zu holen, und
-setzt danach selbst `backend = "stream-engine"` unter `[device]`.
+Backend ist optional und auf den meisten Einzelhandels-ET5 **gar nicht
+nutzbar**: `tobii_gaze_data_subscribe` und `tobii_head_pose_subscribe`
+liefern ohne eine Stream-Engine-Lizenz beide `INSUFFICIENT_LICENSE` —
+und diese Lizenz kommt nur mit bestimmten OEM-/Partner-Deals mit, nicht
+mit einem gewöhnlichen Consumer-Gerät. Genau diese Lücke — Kopfdrehung,
+die unter Linux sonst niemand außerhalb von Tobiis eigener Software
+erreichen konnte — ist der Grund, warum es `et5_ttp_camera` gibt:
+dieselbe Infrarotkamera, aber über das eigene Modell des Projekts statt
+über Tobiis Bibliothek, die für diese Pose keine Lizenz hat. Der
+Installer bietet `stream-engine` nicht mehr an, und die Reparatur
+erhält eine bestehende Einrichtung auch nicht mehr; der manuelle Weg für
+das seltene lizenzierte Gerät bleibt bestehen — einmalig
+`./scripts/fetch-stream-engine.sh` ausführen und danach selbst
+`backend = "stream-engine"` unter `[device]` setzen.
 
 **`use_head_pose = false`** → Reines Eyetracking, kein Kopf-Tracking. Sinnvoll z.B. für Anwendungen die nur Blickpunkte benötigen.
 
@@ -469,7 +481,7 @@ model_path = ""
 |--------|---------|--------|
 | `et5_native` | nichts außer `pyusb` | Position, Rollwinkel, Blick |
 | `et5_ttp_camera` | `onnxruntime` (`pip install 'openstargazer[camera]'`) | dieselben **plus Drehung und Neigung** |
-| `et5_stream_engine` | Tobiis inoffizielle Binärdateien | sechs, über Tobiis eigene Software |
+| `et5_stream_engine` | Tobiis inoffizielle Binärdateien **und** eine Stream-Engine-Lizenz, die die meisten Einzelhandelsgeräte nicht haben | sechs, im Prinzip — siehe Hinweis oben; ohne Lizenz keine |
 | `mock` | nichts | ein simuliertes Signal, zum Testen ohne Hardware |
 
 **Erweitertes Headtracking (`et5_ttp_camera`)** liest die Infrarotkamera
@@ -1507,6 +1519,11 @@ bash scripts/fetch-stream-engine.sh
 ls ~/.local/share/openstargazer/lib/libtobii_stream_engine.so
 ls ~/.local/share/openstargazer/bin/tobiiusbservice
 ```
+
+Meldet der Daemon trotz vorhandener Bibliothek `INSUFFICIENT_LICENSE` bei
+`gaze_data`/`head_pose`, fehlt keine Datei — siehe den Lizenzhinweis unter
+`[device]` oben. Die meisten Einzelhandels-ET5 können dieses Backend gar
+nicht nutzen; auf `et5_ttp_camera` wechseln.
 
 ---
 

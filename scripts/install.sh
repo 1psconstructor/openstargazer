@@ -135,8 +135,13 @@ PYTHON_CMD="python3"
 # binaries, and it is the only one that ever gets a choice or a prompt
 # here. "stream-engine" still exists as a manual path -- fetch it
 # yourself with fetch-stream-engine.sh and set backend = "stream-engine"
-# in config.toml -- and `do_repair` still recognises and repairs it if an
-# existing config already uses it; the installer just does not offer it.
+# in config.toml -- but on most retail ET5 units it cannot work at all:
+# tobii_gaze_data_subscribe and tobii_head_pose_subscribe both need a
+# Stream Engine licence that ships only with certain OEM/partner deals,
+# not with a bare consumer device (INSUFFICIENT_LICENSE otherwise). That
+# gap is why the native and camera sources exist. The installer neither
+# offers this backend nor repairs an existing one; `do_repair` treats
+# every install as native.
 BACKEND="native"
 
 # Track what was done for the summary
@@ -249,19 +254,6 @@ _has_user_data() {
 _is_opentrack_installed() {
     command -v opentrack &>/dev/null || \
     flatpak list --app 2>/dev/null | grep -q "io.github.opentrack.OpenTrack"
-}
-
-_configured_backend() {
-    local cfg="${XDG_CONFIG_HOME:-${HOME}/.config}/openstargazer/config.toml"
-    local value=""
-    if [[ -f "$cfg" ]]; then
-        value="$(sed -n 's/^[[:space:]]*backend[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$cfg" | head -1)"
-    fi
-    if [[ "$value" == "native" || "$value" == "stream-engine" ]]; then
-        printf '%s' "$value"
-    else
-        printf '%s' "$BACKEND"
-    fi
 }
 
 _is_opentrack_profile_installed() {
@@ -469,19 +461,6 @@ install_opentrack_fedora() {
             SUMMARY_SKIP+=("opentrack (skipped, install manually)")
             ;;
     esac
-}
-
-# ---------------------------------------------------------------------------
-fetch_stream_engine() {
-    header "Fetching Tobii Stream Engine..."
-    if ! bash "${SCRIPT_DIR}/fetch-stream-engine.sh"; then
-        warn "Stream Engine could not be installed automatically."
-        warn "Install it manually, then run: osg-setup"
-        warn "See: https://github.com/johngebbie/tobii_4C_for_linux"
-        SUMMARY_FAIL+=("Tobii Stream Engine")
-        return 1
-    fi
-    SUMMARY_OK+=("Tobii Stream Engine")
 }
 
 # ---------------------------------------------------------------------------
@@ -1069,22 +1048,6 @@ do_repair() {
         info "Python package OK"
     fi
 
-    # Repair the backend that is actually configured, not the installer
-    # default -- otherwise a stream-engine setup from before this was
-    # dropped from the installer would silently lose its libraries on
-    # every repair run.
-    BACKEND="$(_configured_backend)"
-    info "Configured backend: ${BACKEND}"
-
-    if [[ "$BACKEND" == "stream-engine" ]]; then
-        if ! _is_tobii_libs_installed; then
-            warn "Tobii Stream Engine library missing -- reinstalling"
-            fetch_stream_engine
-        else
-            info "Tobii Stream Engine library OK"
-        fi
-    fi
-
     if ! _is_udev_installed; then
         warn "udev rules missing -- reinstalling"
         install_udev_rules
@@ -1092,9 +1055,7 @@ do_repair() {
         info "udev rules OK"
     fi
 
-    if [[ "$BACKEND" == "native" ]]; then
-        check_native_prerequisites
-    fi
+    check_native_prerequisites
 
     if ! _is_systemd_service_installed; then
         warn "systemd user service missing -- reinstalling"
