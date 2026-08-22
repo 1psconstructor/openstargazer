@@ -114,6 +114,7 @@ Das Skript zeigt beim Start immer ein Menü:
   3) Deinstallation -- vollständig
   4) Deinstallation -- benutzerdefiniert
   5) Beenden
+  6) Debug-Report erstellen
 ```
 
 | Option | Beschreibung |
@@ -123,6 +124,7 @@ Das Skript zeigt beim Start immer ein Menü:
 | **3 – Volldeinstallation** | Entfernt alle Komponenten (mit Bestätigungsabfrage) |
 | **4 – Benutzerdefiniert** | Zeigt alle Komponenten mit Status, Auswahl per Nummer |
 | **5 – Beenden** | Skript beenden ohne Aktion |
+| **6 – Debug-Report** | Sammelt Logs und Installationsstatus in einer Datei für Bugreports |
 
 > **Installations-Log:** Jeder `install.sh`-Aufruf schreibt einen Eintrag in
 > `~/.local/share/openstargazer/install.log` mit Zeitstempel und `[INFO|WARN|ERROR]`-Level.

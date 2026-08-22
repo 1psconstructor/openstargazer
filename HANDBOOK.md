@@ -109,11 +109,12 @@ The script always presents a menu on startup:
    openstargazer Setup
 ==========================================
 
-  1) Neuinstallation
-  2) Reparatur (fehlende Komponenten nachinstallieren)
-  3) Deinstallation -- vollstaendig
-  4) Deinstallation -- benutzerdefiniert
-  5) Beenden
+  1) Fresh installation
+  2) Repair (reinstall missing components)
+  3) Uninstall -- everything
+  4) Uninstall -- pick components
+  5) Quit
+  6) Create debug report
 ```
 
 | Option | Description |
@@ -123,6 +124,7 @@ The script always presents a menu on startup:
 | **3 – Full uninstall** | Removes all components (with confirmation prompt) |
 | **4 – Custom uninstall** | Shows all components with status, select by number |
 | **5 – Exit** | Quit without action |
+| **6 – Debug report** | Collects logs and install state into one file for bug reports |
 
 > **Install log:** Every run of `install.sh` appends to
 > `~/.local/share/openstargazer/install.log` with timestamps and `[INFO|WARN|ERROR]`
@@ -1409,7 +1411,7 @@ cd scripts
 bash collect-debug-info.sh
 ```
 
-Or from the install.sh menu: choose **option 6 – Debug-Report erstellen**.
+Or from the install.sh menu: choose **option 6 – Create debug report**.
 
 The script creates a file at:
 ```
