@@ -188,6 +188,16 @@ class MainWindow:
         self._ipc.set_config({"output": {"opentrack_udp": {"port": int(port)}}})
         self._settings.output.opentrack_udp.port = int(port)
 
+    def install_opentrack_profile(self):
+        from openstargazer.setup.lug_detector import LUGDetector
+        from openstargazer.setup.opentrack_config import OpenTrackConfigGenerator
+
+        lug = LUGDetector().detect()
+        if lug is None:
+            raise RuntimeError("no-lug-install-detected")
+        return OpenTrackConfigGenerator().install(
+            lug, udp_port=self._settings.output.opentrack_udp.port)
+
     def recenter(self) -> dict:
         return self._ipc.recenter()
 

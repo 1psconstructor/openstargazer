@@ -10,9 +10,10 @@ from openstargazer.setup.lug_detector import LUGInstall
 
 log = logging.getLogger(__name__)
 
-_OPENTRACK_CONFIG_DIR_NATIVE  = Path.home() / ".config" / "opentrack"
+_OPENTRACK_IDENT = "opentrack-2.3"
+_OPENTRACK_CONFIG_DIR_NATIVE  = Path.home() / ".config" / _OPENTRACK_IDENT
 _OPENTRACK_CONFIG_DIR_FLATPAK = (
-    Path.home() / ".var" / "app" / "io.github.opentrack.OpenTrack" / "config" / "opentrack"
+    Path.home() / ".var" / "app" / "io.github.opentrack.OpenTrack" / "config" / _OPENTRACK_IDENT
 )
 _PROFILE_NAME = "tobii5-starcitizen"
 
@@ -47,77 +48,23 @@ class OpenTrackConfigGenerator:
         fsync_val = "true" if lug.fsync else "false"
 
         content = f"""\
-[General]
-profile-name={_PROFILE_NAME}
-version=2026
+[modules]
+protocol-dll=wine
+tracker-dll=udp
+filter-dll=
 
-[tracker]
-dll=opentrack-input-udp
-name=UDP over network
-
-[filter]
-dll=
-name=(no filter)
-
-[output]
-dll=opentrack-output-wine
-name=Wine
-
-[tracker-dll-config]
+[udp-tracker]
 port={udp_port}
 
-[output-dll-config]
-wine-path={runner}
-prefix={prefix}
+[proto-wine]
+wine-select-version=CUSTOM
+wine-custom-version={runner}
+wineprefix={prefix}
 protocol=1
-ESYNC={esync_val}
-FSYNC={fsync_val}
-
-[mapping]
-yaw\\min=-180
-yaw\\max=180
-yaw\\clamp=1
-pitch\\min=-90
-pitch\\max=90
-pitch\\clamp=1
-roll\\min=-90
-roll\\max=90
-roll\\clamp=1
-x\\min=-300
-x\\max=300
-x\\clamp=1
-y\\min=-300
-y\\max=300
-y\\clamp=1
-z\\min=-300
-z\\max=300
-z\\clamp=1
+esync={esync_val}
+fsync={fsync_val}
 """
         return content
-
-    def generate_xml(self, lug: LUGInstall, udp_port: int = 4242) -> str:
-        runner = str(lug.runner_path) if lug.runner_path else ""
-        prefix = str(lug.wine_prefix)
-
-        return f"""\
-<?xml version="1.0" encoding="UTF-8"?>
-<settings>
-  <profile name="{_PROFILE_NAME}">
-    <tracker dll="opentrack-input-udp">
-      <port>{udp_port}</port>
-    </tracker>
-    <filter dll=""/>
-    <output dll="opentrack-output-wine">
-      <wine-path>{runner}</wine-path>
-      <prefix>{prefix}</prefix>
-      <!-- protocol: 1=Both (FreeTrack 2.0 + TrackIR) -->
-      <protocol>1</protocol>
-      <ESYNC>{str(lug.esync).lower()}</ESYNC>
-      <FSYNC>{str(lug.fsync).lower()}</FSYNC>
-    </output>
-  </profile>
-</settings>
-"""
 
     def install(self, lug: LUGInstall, udp_port: int = 4242) -> Path:
         config_dir = _find_opentrack_config_dir()
@@ -137,15 +84,15 @@ z\\clamp=1
                 "Wine output plugin to work correctly."
             )
 
-        last_profile_file = config_dir / "opentrack.ini"
-        if last_profile_file.exists():
-            _update_ini_value(last_profile_file, "General", "profile",
+        global_settings_file = config_dir.parent / f"{_OPENTRACK_IDENT}.conf"
+        if global_settings_file.exists():
+            _update_ini_value(global_settings_file, "General", "settings-filename",
                               f"{_PROFILE_NAME}.ini")
         else:
-            last_profile_file.write_text(
-                f"[General]\nprofile={_PROFILE_NAME}.ini\n", encoding="utf-8"
+            global_settings_file.write_text(
+                f"[General]\nsettings-filename={_PROFILE_NAME}.ini\n", encoding="utf-8"
             )
-            log.info("Created opentrack.ini with profile pointer")
+            log.info("Created %s with active-profile pointer", global_settings_file)
 
         return profile_path
 

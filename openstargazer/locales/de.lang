@@ -206,6 +206,12 @@ gui.output.udp = OpenTrack UDP
 gui.output.udp_subtitle = localhost:4242 - Hauptausgabe für Star Citizen
 gui.output.shm = FreeTrack Shared Memory
 gui.output.shm_subtitle = Wine-Fallback - keine Sandbox
+gui.output.opentrack_profile = OpenTrack-Profil
+gui.output.opentrack_profile_subtitle = Erzeugt/aktualisiert das OpenTrack-Profil fuer Star Citizen anhand der erkannten LUG-Installation
+gui.output.opentrack_profile_install = Installieren
+gui.output.opentrack_profile_installed = Installiert: {path}
+gui.output.opentrack_profile_failed = Fehlgeschlagen: {reason}
+gui.output.opentrack_profile_no_lug = Keine Star-Citizen-LUG-Installation gefunden
 
 gui.actions.group = Aktionen
 gui.actions.calibration = Blickkalibrierung

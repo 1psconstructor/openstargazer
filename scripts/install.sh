@@ -325,9 +325,14 @@ install_system_deps() {
 
 # ---------------------------------------------------------------------------
 install_opentrack_from_source() {
+    # Installs to $HOME/.local rather than /usr/local: opentrack binds its
+    # plugins via RUNPATH (not the system ld cache), so a privileged install
+    # step and ldconfig were never actually needed - and a user-owned build
+    # means the user can rebuild it themselves later (e.g. after a Fedora
+    # library bump breaks it, see docs/opentrack-fedora.md) without sudo.
     local build_deps=(
-        cmake git
-        qt6-qtbase-private-devel qt6-qttools-devel
+        cmake git gcc-c++ ninja-build
+        qt6-qtbase-devel qt6-qtbase-private-devel qt6-qttools-devel qt6-qtsvg-devel
         opencv-devel procps-ng-devel libevdev-devel
         wine-devel wine-devel.i686
     )
@@ -340,35 +345,34 @@ install_opentrack_from_source() {
     trap '[[ -n "${src_dir:-}" ]] && rm -rf -- "$src_dir"' RETURN
 
     info "Cloning opentrack from GitHub..."
-    if ! git clone --depth=1 https://github.com/opentrack/opentrack "$src_dir/opentrack"; then
+    if ! git clone --branch opentrack-2026.1.0 --depth=1 https://github.com/opentrack/opentrack "$src_dir/opentrack"; then
         error "Failed to clone opentrack repository"
         SUMMARY_FAIL+=("opentrack (git clone failed)")
         return 1
     fi
 
     info "Building opentrack (SDK_WINE=ON)..."
-    mkdir -p "$src_dir/build"
-    if ! cmake -S "$src_dir/opentrack" -B "$src_dir/build" \
+    if ! cmake -S "$src_dir/opentrack" -B "$src_dir/build" -G Ninja \
             -DSDK_WINE=ON \
+            -DOPENTRACK_WINE_ARCH=-m64 \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr/local; then
+            -DCMAKE_INSTALL_PREFIX="$HOME/.local"; then
         error "cmake configuration failed"
         SUMMARY_FAIL+=("opentrack (cmake failed)")
         return 1
     fi
-    if ! make -C "$src_dir/build" -j"$(nproc)"; then
+    if ! cmake --build "$src_dir/build" -j"$(nproc)"; then
         error "Build failed"
-        SUMMARY_FAIL+=("opentrack (make failed)")
+        SUMMARY_FAIL+=("opentrack (build failed)")
         return 1
     fi
-    if ! _run_privileged make -C "$src_dir/build" install; then
+    if ! cmake --install "$src_dir/build"; then
         error "Installation failed"
-        SUMMARY_FAIL+=("opentrack (make install failed)")
+        SUMMARY_FAIL+=("opentrack (install failed)")
         return 1
     fi
-    _run_privileged ldconfig
 
-    info "opentrack installed from source ✓"
+    info "opentrack installed from source into \$HOME/.local ✓"
     SUMMARY_OK+=("opentrack (GitHub source, SDK_WINE=ON)")
 }
 
@@ -395,69 +399,31 @@ install_opentrack_fedora() {
         return
     fi
 
-    # Not in repos – ask user which method to use
+    # Not in repos - build from source. Neither RPM Fusion nor Flathub
+    # actually carry opentrack (verified August 2026: RPM Fusion Free has no
+    # such package, and io.github.opentrack.OpenTrack does not exist on
+    # Flathub), and upstream itself ships Windows-only release binaries - so
+    # building from source is the only real Linux option, not just the
+    # recommended one. See docs/opentrack-fedora.md for details.
     warn "opentrack is not in the enabled dnf repositories."
     echo
     echo "  Choose an installation method:"
-    echo "  1) Enable RPM Fusion Free and install via dnf"
-    echo "  2) Install via Flatpak from Flathub"
-    echo "  3) Build from GitHub source (recommended for Fedora 43, Wine/LUG support)"
-    echo "  4) Skip (install manually later)"
+    echo "  1) Build from GitHub source (only real option on Linux, includes Wine output plugin)"
+    echo "  2) Skip (install manually later)"
     echo
-    read -rp "  Selection [1-4]: " ot_choice
+    read -rp "  Selection [1-2]: " ot_choice
 
-    case "${ot_choice:-4}" in
+    case "${ot_choice:-2}" in
         1)
-            info "Enabling RPM Fusion Free..."
-            local fedora_ver
-            fedora_ver="$(rpm -E %fedora)"
-            local rpmfusion_url="https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-${fedora_ver}.noarch.rpm"
-            if _run_privileged dnf install -y "$rpmfusion_url"; then
-                info "RPM Fusion Free enabled"
-                if _run_privileged dnf install -y opentrack; then
-                    info "opentrack installed via RPM Fusion"
-                    SUMMARY_OK+=("opentrack (RPM Fusion)")
-                else
-                    error "opentrack installation failed after enabling RPM Fusion"
-                    SUMMARY_FAIL+=("opentrack (RPM Fusion install failed)")
-                fi
-            else
-                error "Failed to enable RPM Fusion Free"
-                SUMMARY_FAIL+=("opentrack (RPM Fusion enable failed)")
-            fi
-            ;;
-        2)
-            if ! command -v flatpak &>/dev/null; then
-                warn "flatpak not installed -- installing it first..."
-                _run_privileged dnf install -y flatpak
-                _run_privileged flatpak remote-add --if-not-exists flathub \
-                    https://dl.flathub.org/repo/flathub.flatpakrepo
-            fi
-            info "Installing opentrack via Flatpak..."
-            if flatpak install -y flathub io.github.opentrack.OpenTrack; then
-                info "opentrack installed as Flatpak"
-                info "Note: Flatpak config dir is ~/.var/app/io.github.opentrack.OpenTrack/config/opentrack/"
-                info "The OpenTrack profile will be written there automatically."
-                SUMMARY_OK+=("opentrack (Flatpak)")
-            else
-                error "Flatpak install failed"
-                SUMMARY_FAIL+=("opentrack (Flatpak install failed)")
-            fi
-            ;;
-        3)
             install_opentrack_from_source
             ;;
         *)
             warn "Skipping opentrack installation."
             warn "Install manually before using head tracking:"
-            echo "    sudo dnf install -y https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-\$(rpm -E %fedora).noarch.rpm"
-            echo "    sudo dnf install -y opentrack"
-            echo "  or:"
-            echo "    flatpak install flathub io.github.opentrack.OpenTrack"
-            echo "  or (Fedora 43+, includes Wine output plugin):"
-            echo "    git clone --depth=1 https://github.com/opentrack/opentrack"
-            echo "    cmake -S opentrack -B build -DSDK_WINE=ON -DCMAKE_INSTALL_PREFIX=/usr/local"
-            echo "    make -C build -j\$(nproc) && sudo make -C build install"
+            echo "    git clone --branch opentrack-2026.1.0 --depth=1 https://github.com/opentrack/opentrack"
+            echo "    cmake -S opentrack -B build -G Ninja -DSDK_WINE=ON -DOPENTRACK_WINE_ARCH=-m64 \\"
+            echo "          -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=\$HOME/.local"
+            echo "    cmake --build build -j\$(nproc) && cmake --install build"
             SUMMARY_SKIP+=("opentrack (skipped, install manually)")
             ;;
     esac

@@ -296,6 +296,15 @@ class OutputPage:
         shm_row.add_suffix(shm_switch)
         group.add(shm_row)
 
+        self._profile_row = Adw.ActionRow(
+            title=t("gui.output.opentrack_profile"),
+            subtitle=t("gui.output.opentrack_profile_subtitle"))
+        profile_button = Gtk.Button(label=t("gui.output.opentrack_profile_install"))
+        profile_button.set_valign(Gtk.Align.CENTER)
+        profile_button.connect("clicked", self._on_install_opentrack_profile)
+        self._profile_row.add_suffix(profile_button)
+        group.add(self._profile_row)
+
         content.append(group)
         toolbar_view.set_content(_scrolled(content))
         self.page = Adw.NavigationPage.new(toolbar_view, t("gui.settings.card_output"))
@@ -321,6 +330,20 @@ class OutputPage:
             self._port_spin.set_value(self._shell.settings.output.opentrack_udp.port)
             return
         self._port_row.set_subtitle(t("gui.output.port_saved", port=port))
+
+    def _on_install_opentrack_profile(self, _button) -> None:
+        try:
+            path = self._shell.install_opentrack_profile()
+        except Exception as exc:
+            if str(exc) == "no-lug-install-detected":
+                self._profile_row.set_subtitle(t("gui.output.opentrack_profile_no_lug"))
+            else:
+                log.warning("Could not install the OpenTrack profile: %s", exc)
+                self._profile_row.set_subtitle(
+                    t("gui.output.opentrack_profile_failed", reason=str(exc)))
+            return
+        self._profile_row.set_subtitle(
+            t("gui.output.opentrack_profile_installed", path=str(path)))
 
 
 class CurvesPage:

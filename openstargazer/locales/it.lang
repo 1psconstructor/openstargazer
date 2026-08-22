@@ -203,6 +203,12 @@ gui.output.udp = OpenTrack UDP
 gui.output.udp_subtitle = localhost:4242 - uscita principale per Star Citizen
 gui.output.shm = Memoria condivisa FreeTrack
 gui.output.shm_subtitle = Ripiego per Wine - nessuna sandbox
+gui.output.opentrack_profile = Profilo OpenTrack
+gui.output.opentrack_profile_subtitle = Crea/aggiorna il profilo OpenTrack per Star Citizen in base all'installazione LUG rilevata
+gui.output.opentrack_profile_install = Installa
+gui.output.opentrack_profile_installed = Installato: {path}
+gui.output.opentrack_profile_failed = Fallito: {reason}
+gui.output.opentrack_profile_no_lug = Nessuna installazione LUG di Star Citizen trovata
 
 gui.actions.group = Azioni
 gui.actions.calibration = Calibrazione dello sguardo
