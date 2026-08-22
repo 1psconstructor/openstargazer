@@ -95,7 +95,7 @@ Tests run without physical hardware — the mock tracker is used automatically.
 ## How this repository is published
 
 `master` here is a **published snapshot**, not a working branch. It is
-curated from the development history, which is why it arrives as whole
+generated from the development history, which is why it arrives as whole
 releases rather than as a stream of commits, and why it carries no inline
 comments.
 
