@@ -39,16 +39,24 @@ openstargazer is a native Linux driver stack for the **Tobii Eye Tracker 5**. It
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Tobii Eye Tracker 5 (USB)                                      │
-│    └─► libtobii_stream_engine.so  (proprietary Tobii library)   │
-│          └─► osg-daemon           (Python background process)   │
-│                ├─► OneEuro Filter  (noise reduction)            │
-│                ├─► Curve Mapping   (axis configuration)         │
-│                ├─► OpenTrack UDP   (→ OpenTrack → Star Citizen) │
-│                ├─► FreeTrack SHM   (alternative output)         │
-│                └─► IPC Socket      (GUI communication)          │
-│                                                                  │
-│  osg-config  (GTK4 GUI – optional interface)                    │
-│  osg-setup   (Setup Wizard – initial configuration)             │
+│    ├─► et5_native         pyusb only -- position, roll,         │
+│    │                      gaze (default)                        │
+│    ├─► et5_ttp_camera     + IR camera, own ONNX weights         │
+│    │                      -- adds yaw and pitch                 │
+│    └─► et5_stream_engine  libtobii_stream_engine.so --          │
+│                           needs a Tobii licence most            │
+│                           retail units don't have               │
+│                                                                 │
+│  osg-daemon  (Python background process, one source             │
+│               active at a time)                                 │
+│    ├─► OneEuro Filter  (noise reduction)                        │
+│    ├─► Curve Mapping   (axis configuration)                     │
+│    ├─► OpenTrack UDP   (→ OpenTrack → Star Citizen)             │
+│    ├─► FreeTrack SHM   (alternative output)                     │
+│    └─► IPC Socket      (GUI communication)                      │
+│                                                                 │
+│  osg-config  (GTK4 GUI -- optional interface)                   │
+│  osg-setup   (Setup Wizard -- initial configuration)            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

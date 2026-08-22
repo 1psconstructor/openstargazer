@@ -39,16 +39,25 @@ openstargazer ist ein nativer Linux-Treiber-Stack für den **Tobii Eye Tracker 5
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Tobii Eye Tracker 5 (USB)                                      │
-│    └─► libtobii_stream_engine.so  (proprietäre Tobii-Bibliothek)│
-│          └─► osg-daemon        (Python-Hintergrundprozess)   │
-│                ├─► OneEuro-Filter  (Rauschunterdrückung)        │
-│                ├─► Kurven-Mapping  (Achsen-Konfiguration)       │
-│                ├─► OpenTrack UDP   (→ OpenTrack → Star Citizen) │
-│                ├─► FreeTrack SHM   (alternative Ausgabe)        │
-│                └─► IPC-Socket      (Kommunikation mit GUI)      │
-│                                                                  │
-│  osg-config  (GTK4-GUI – optionale Bedienoberfläche)         │
-│  osg-setup   (Setup-Wizard – Ersteinrichtung)                │
+│    ├─► et5_native         nur pyusb -- Position,                │
+│    │                      Rollwinkel, Blick (Standard)          │
+│    ├─► et5_ttp_camera     + IR-Kamera, eigene ONNX-             │
+│    │                      Gewichte -- Drehung und Neigung       │
+│    └─► et5_stream_engine  libtobii_stream_engine.so --          │
+│                           braucht eine Tobii-Lizenz, die        │
+│                           die meisten Einzelhandelsgeräte       │
+│                           nicht haben                           │
+│                                                                 │
+│  osg-daemon  (Python-Hintergrundprozess, jeweils eine           │
+│               Quelle aktiv)                                     │
+│    ├─► OneEuro-Filter  (Rauschunterdrückung)                    │
+│    ├─► Kurven-Mapping  (Achsen-Konfiguration)                   │
+│    ├─► OpenTrack UDP   (→ OpenTrack → Star Citizen)             │
+│    ├─► FreeTrack SHM   (alternative Ausgabe)                    │
+│    └─► IPC-Socket      (Kommunikation mit GUI)                  │
+│                                                                 │
+│  osg-config  (GTK4-GUI -- optionale Bedienoberfläche)           │
+│  osg-setup   (Setup-Wizard -- Ersteinrichtung)                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
