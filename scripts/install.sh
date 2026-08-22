@@ -563,7 +563,7 @@ install_python_package() {
     # everything -- code, the shipped model weights, the locale files --
     # into site-packages, so the daemon survives its own source going away
     # (found live: the next restart after that raised ModuleNotFoundError).
-    if python3 -m pip install --user ".[gui,tray]" 2>/dev/null; then
+    if python3 -m pip install --user ".[gui,tray,camera]" 2>/dev/null; then
         info "Python package installed"
         SUMMARY_OK+=("Python package (pip --user)")
         return
@@ -574,7 +574,7 @@ install_python_package() {
 
     local venv_dir="${HOME}/.local/share/openstargazer/venv"
     python3 -m venv --system-site-packages "$venv_dir"
-    "$venv_dir/bin/pip" install --quiet ".[gui,tray]"
+    "$venv_dir/bin/pip" install --quiet ".[gui,tray,camera]"
 
     local bin_dir="${HOME}/.local/bin"
     mkdir -p "$bin_dir"

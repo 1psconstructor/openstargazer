@@ -143,9 +143,11 @@ class CalibrationPage:
         self.page.osg_refresh = self.osg_refresh
         self.osg_refresh(shell.status)
 
-    def _calibration_subtitle(self) -> str:
-        cal = self._shell.settings.calibration
-        if cal.coeff_x and cal.coeff_y:
+    def _calibration_subtitle(self, calibrated: bool | None = None) -> str:
+        if calibrated is None:
+            cal = self._shell.settings.calibration
+            calibrated = bool(cal.coeff_x and cal.coeff_y)
+        if calibrated:
             return t("gui.settings.card_calibration_done")
         return t("gui.settings.card_calibration_missing")
 
@@ -183,7 +185,7 @@ class CalibrationPage:
         gaze = status.get("gaze_xy", [0.5, 0.5])
         self._gaze_x, self._gaze_y = gaze[0], gaze[1]
         self._canvas.queue_draw()
-        self._calib_row.set_subtitle(self._calibration_subtitle())
+        self._calib_row.set_subtitle(self._calibration_subtitle(status.get("calibrated")))
 
     def _on_recenter(self) -> None:
         try:
