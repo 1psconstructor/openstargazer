@@ -230,12 +230,13 @@ chmod +x install.sh
    python3-gobject  gtk4  libadwaita  libusb  usbutils  curl  tar
    ```
 
-3. **OpenTrack** — nicht in Fedoras offiziellen Repos oder RPM Fusion Free (Fedora 43+).
-   Der Installer bietet vier Optionen an:
-   1. RPM Fusion Free aktivieren und via dnf installieren (nicht für alle Versionen verfügbar)
-   2. Via Flatpak von Flathub installieren
-   3. Aus dem GitHub-Quellcode bauen (empfohlen für Fedora 43, inklusive Wine/LUG-Unterstützung)
-   4. Überspringen (später manuell installieren)
+3. **OpenTrack** — gibt es für Linux nirgends als fertiges Paket: weder in
+   Fedoras Repos noch in RPM Fusion Free noch auf Flathub (geprüft August
+   2026 — `io.github.opentrack.OpenTrack` existiert dort schlicht nicht),
+   und upstream selbst veröffentlicht auf GitHub nur Windows-Binaries.
+   Der Installer bietet daher zwei Optionen an:
+   1. Aus dem GitHub-Quellcode bauen (einzige funktionierende Linux-Option, inklusive Wine/LUG-Unterstützung)
+   2. Überspringen (später manuell installieren)
 
 4. **Python-Paket** — Fedora hat PEP 668 aktiviert, daher:
    - Erster Versuch: normales `pip install --user`
@@ -249,22 +250,30 @@ chmod +x install.sh
 **OpenTrack unter Fedora installieren:**
 
 ```bash
-# Option A: RPM Fusion Free aktivieren
-sudo dnf install -y \
-  https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
-sudo dnf install -y opentrack
-
-# Option B: Flatpak (Flathub)
-flatpak install -y flathub io.github.opentrack.OpenTrack
-
-# Option C: Aus dem GitHub-Quellcode bauen (Fedora 43+, inklusive Wine-Ausgabe-Plugin)
-sudo dnf install cmake git qt6-qtbase-private-devel qt6-qttools-devel \
+sudo dnf install -y cmake git gcc-c++ ninja-build \
+  qt6-qtbase-devel qt6-qtbase-private-devel qt6-qttools-devel qt6-qtsvg-devel \
   opencv-devel procps-ng-devel libevdev-devel wine-devel wine-devel.i686
-git clone --depth=1 https://github.com/opentrack/opentrack
-cd opentrack && mkdir build && cd build
-cmake .. -DSDK_WINE=ON -DCMAKE_INSTALL_PREFIX=/usr/local
-make -j$(nproc) && sudo make install
+git clone --branch opentrack-2026.1.0 --depth=1 https://github.com/opentrack/opentrack
+cmake -S opentrack -B opentrack/build -G Ninja -DSDK_WINE=ON -DOPENTRACK_WINE_ARCH=-m64 \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME/.local
+cmake --build opentrack/build -j$(nproc)
+cmake --install opentrack/build
 ```
+
+Installiert nach `$HOME/.local` statt `/usr/local` — kein `sudo` nötig, und
+damit kann jeder das später selbst neu bauen, ohne root. Das ist auch
+nötig: OpenTrack bindet dynamisch gegen `libopencv_*`/`libproc2`, und ein
+Fedora-Update, das diese Bibliotheken weiterdreht (z. B. procps-ng- oder
+OpenCV-Versionssprung), bricht ein altes Binary. Ein Fedora-Update mit einer
+neueren Bibliotheksversion braucht dann einen Neubau nach demselben Rezept.
+
+> **Wo landet die Konfiguration?** OpenTrack legt seine Profile immer unter
+> `~/.config/opentrack-2.3/` ab — mit diesem Versionssuffix, unabhängig
+> davon, welche OpenTrack-Version tatsächlich installiert ist (der
+> Qt-Einstellungsname ist im OpenTrack-eigenen Build fest einprogrammiert
+> und ändert sich nicht). Ein Profil, das versehentlich unter
+> `~/.config/opentrack/` (ohne Suffix) landet, wird von OpenTrack nie
+> gefunden.
 
 ---
 
@@ -1233,6 +1242,34 @@ Byte 40–47: Roll (Grad)
 **Ausgang:** `Wine` – Runner und Prefix aus der LUG-Helper-Konfiguration
 
 **Filter:** Keiner (osg-daemon filtert bereits intern)
+
+Der Ersteinrichtungs-Assistent (`osg-setup`) legt dieses Profil automatisch
+an, sofern eine LUG-Helper-Installation erkannt wird — Schritt 4,
+„OpenTrack-Profil". Wurde OpenTrack erst **nach** dem Assistenten
+installiert, oder hat sich der Wine-Runner/-Prefix seitdem geändert: in der
+App unter **Einstellungen → Ausgabe** auf **Installieren** neben
+„OpenTrack-Profil" klicken, um es nachträglich (neu) zu erzeugen.
+
+#### Wenn die automatische Wine-Erkennung fehlschlägt
+
+OpenTracks eigener Wine-Ausgang versucht, laufende Wine-Präfixe automatisch
+zu finden. Das gelingt nicht immer (z. B. bei nicht standardmäßig
+installierten LUG-Helper-Runnern). In dem Fall manuell in OpenTracks
+Ausgang-Dialog eintragen:
+
+1. Bei **Wine-Version** → **„Custom path to Wine executable"** wählen und
+   über **Browse Wine Path** den Wine-Binary-Pfad angeben, z. B.:
+   `~/Games/star-citizen/runners/<runner-name>/bin/wine`
+2. Bei **Prefix** über **Browse Prefix** den Wine-Prefix angeben, z. B.
+   `~/Games/star-citizen`
+3. Bei **Protocol** → **NPClient** wählen (Star Citizen unterstützt
+   TrackIR/NPClient nativ; „Freetrack" ist hier nicht nötig).
+4. **ESYNC** und **FSYNC** aktivieren, passend zur eigenen Wine-Umgebung.
+
+Das von `osg-setup` erzeugte Profil (`tobii5-starcitizen.ini`) enthält
+diese Werte bereits korrekt vorausgefüllt, sofern die LUG-Helper-Erkennung
+erfolgreich war — die manuelle Eingabe ist nur nötig, wenn dieser Schritt
+übersprungen wurde oder fehlschlug.
 
 ### Startreihenfolge (wichtig!)
 
